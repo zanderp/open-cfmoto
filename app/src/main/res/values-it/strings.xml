@@ -2,7 +2,7 @@
 <!-- Draft + terminology pass — improve via PR: docs/TRANSLATIONS.md -->
 <resources>
     <string name="about_copyright">© 2026 Alessandro</string>
-    <string name="about_copyright_body">Mantenuto da Alexandru (zanderp). Software gratuito con GNU AGPL v3 o versione successiva: vedere LICENZA e AVVISO nella repository per il testo completo di copyright e attributi.</string>
+    <string name="about_copyright_body">Sviluppato da Alexandru (zanderp). Software gratuito con GNU AGPL v3 o versione successiva: vedere LICENZA e AVVISO nella repository per il testo completo di copyright e attributi.</string>
     <string name="about_license_body">Puoi utilizzare, studiare, condividere e modificare questa app sotto AGPL. Se ridistribuisci una versione modificata (anche come servizio di rete), devi citare la fonte corrispondente completa con la stessa licenza.</string>
     <string name="about_credits">Sviluppato grazie alla community open-cfmoto lineage:\n\n• dcoletto / coletz — lavoro originale QR &amp; EasyConn\n• BojanJ: integrazione del ricevitore Android Auto\n• richardbizik: supporto 1000 MT‑X\n• ionutradu252 / open-cflink — controlli del manubrio, margini, riconnessione e lucidatura\n• eugen0309: percorso Wi‑Fi Direct/CL‑C450\n• unità principale rinnovata: stack di proiezione Android Auto (AGPL)\n\nE tutti coloro che hanno testato le moto, hanno condiviso registri e segnalato problemi.</string>
     <string name="about_disclaimer">OpenCfMoto è un progetto indipendente della community non è affiliato, approvato o sponsorizzato da CFMOTO, Carbit, Google, Android Auto o altri marchi che concedono in licenza EasyConnect-style (inclusi Voge, Zontes, Moto Morini, Benelli, QJ Motor, Morbidelli e Longjia). CFMOTO, MotoPlay, EasyConn, Carbit, Android, Android Auto e i marchi correlati sono marchi dei rispettivi proprietari. Utilizzalo a tuo rischio e pericolo: imposta il percorso prima di partire.</string>
@@ -29,7 +29,7 @@
     <string name="about_gnu_affero_general_public_license_v3_or_later">GNU Affero General Public License v3 o successiva</string>
     <string name="about_view_license_notice">Visualizza LICENZA E AVVISO</string>
     <string name="about_credits_2">Crediti</string>
-    <string name="about_disclaimer_2">Disclaimer</string>
+    <string name="about_disclaimer_2">Dichiarazione di non responsabilità</string>
     <string name="about_done">Fatto</string>
     <string name="buttons_button_mapping">Mappatura dei pulsanti</string>
     <string name="buttons_choose_what_each_handlebar_gesture_does_in_andro">Scegli cosa fa ogni pulsante del manubrio in Android Auto. Le modifiche verranno applicate quando premi il tasto mappato, senza necessità di riconnessione. Richiede che il telefono sia accoppiato alla moto tramite Bluetooth.</string>
@@ -63,7 +63,7 @@
     <string name="controls_phone_media_volume_nav_voice_music_use_this_when">Volume multimediale del telefono (voce di navigazione e musica). Utilizzalo quando i pulsanti del volume della moto controllano Android Auto.</string>
     <string name="controls_low">Giù</string>
     <string name="controls_prev">Precedente</string>
-    <string name="controls_next">Avanti </string>
+    <string name="controls_next">Successivo</string>
     <string name="controls_back">Indietro</string>
     <string name="controls_home">Home</string>
     <string name="controls_voice">Voce</string>
@@ -105,9 +105,9 @@
     <string name="gpx_metric">Metrico</string>
     <string name="gpx_imperial">Imperiale</string>
     <string name="gpx_voice_prompts">Istruzioni vocali</string>
-    <string name="gpx_on">On</string>
+    <string name="gpx_on">On / Acceso</string>
     <string name="gpx_next_stop_details">Dettagli della prossima fermata</string>
-    <string name="gpx_auto_finish_on_arrive">Finisci automaticamente quando arrivi</string>
+    <string name="gpx_auto_finish_on_arrive">Ferma automaticamente quando arrivi</string>
     <string name="gpx_dash_chrome">Cruscotto cromato</string>
     <string name="gpx_dark">Scuro</string>
     <string name="gpx_black">Nero</string>
@@ -121,15 +121,15 @@
     <string name="gpx_circuit">Circuito</string>
     <string name="gpx_avoid_tolls">Evita i pedaggi</string>
     <string name="gpx_avoid_highways">Evita le autostrade</string>
-    <string name="gpx_fun_circuit_length">Distanza del circuito divertente</string>
+    <string name="gpx_fun_circuit_length">Distanza del circuito</string>
     <string name="gpx_30_km">30 km</string>
     <string name="gpx_60_km">60 km</string>
     <string name="gpx_100_km">100 km</string>
     <string name="gpx_offline_maps">Mappe offline</string>
     <string name="gpx_download_an_area_to_ride_without_a_connection_li">Scarica un’area da usare offline, come nelle mappe offline di Google Maps. Fallo con il Wi‑Fi di casa: il Wi‑Fi della moto non ha accesso a Internet.</string>
-    <string name="gpx_detail">Dettaglio</string>
-    <string name="gpx_standard">Standard</string>
-    <string name="gpx_high">Alto</string>
+    <string name="gpx_detail">Dettagli</string>
+    <string name="gpx_standard">Normali</string>
+    <string name="gpx_high">Elevati</string>
     <string name="gpx_radius">Raggio</string>
     <string name="gpx_10_km">10 km</string>
     <string name="gpx_25_km">25 km</string>
@@ -151,9 +151,9 @@
     <string name="gpx_export_map_data">Esporta dati mappa…</string>
     <string name="gpx_import_map_data">Importa dati mappa...</string>
     <string name="gpx_map_gpx_uses_maplibre_vector_tiles_online_and_op">Mappa/GPX utilizza riquadri vettoriali MapLibre (online) e pacchetti regionali offline opzionali. Per ricerca/OSRM/limiti è necessaria la connessione Internet del telefono prima del Wi‑Fi della moto. Dash: Fine/Parcheggio/Ricalcolo, LIMITE, Direzione/Nord, zoom, inclinazione 3D.</string>
-    <string name="hud_start_android_auto_and_connect_to_your_bike_to_s">Avvia Android Auto e connettiti alla tua bici per vedere il cruscotto qui.\n\nOppure tocca Mappa per un\'anteprima del telefono senza la bici.</string>
+    <string name="hud_start_android_auto_and_connect_to_your_bike_to_s">Avvia Android Auto e connettiti alla tua moto per vedere il cruscotto qui.\n\nOppure tocca Mappa per un\'anteprima del telefono senza la moto.</string>
     <string name="hud_str">✕</string>
-    <string name="hud_dash_view">Vista cruscotto</string>
+    <string name="hud_dash_view">Vedi cruscotto</string>
     <string name="hud_hub">Centro</string>
     <string name="hud_str_2">🌗</string>
     <string name="hud_str_3">⛶</string>
@@ -164,7 +164,7 @@
     <string name="main_ready">Pronto</string>
     <string name="main_no_bike_paired_yet">Nessuna moto ancora accoppiata</string>
     <string name="main_connect">Connettiti</string>
-    <string name="main_scan">Scansione</string>
+    <string name="main_scan">Scan</string>
     <string name="main_mirror">Mirroring</string>
     <string name="main_stop">Stop</string>
     <string name="main_setup">Impostazioni</string>
@@ -234,16 +234,16 @@
     <string name="setup_turn_on_if_handlebar_buttons_do_nothing_android_">Attiva se i pulsanti del manubrio non fanno nulla: Android Auto funziona se la finestra è attiva / selezionata (no touchscreen), quindi ▲/▼/ Invio funziona. Necessario dopo Connessi - interrompilo prima se stai già in mirroring.</string>
     <string name="setup_force_touchscreen">Forza il touchscreen</string>
     <string name="setup_off_use_the_bike_profile_1000_mt_x_stays_focus_k">Off - utilizza il profilo moto (1000 MT‑X rimane selezionato/manopola)</string>
-    <string name="setup_turn_on_for_a_touch_panel_on_a_focus_knob_profil">Attiva per un pannello a sfioramento su un profilo di messa a fuoco/manopola (ad esempio 1000 MT‑X): Android Auto pubblicizza un touchscreen in modo da poter toccare il cruscotto. Disattiva Disattiva touchscreen. Se necessario, sblocca il lucchetto touch della bici. Si applica alla connessione successiva: interrompi prima se stai già proiettando.</string>
+    <string name="setup_turn_on_for_a_touch_panel_on_a_focus_knob_profil">Attiva per un pannello a sfioramento su un profilo di messa a fuoco/manopola (ad esempio 1000 MT‑X): Android Auto pubblicizza un touchscreen in modo da poter toccare il cruscotto. Disattiva Disattiva touchscreen. Se necessario, sblocca il lucchetto touch della moto. Si applica alla connessione successiva: interrompi prima se stai già proiettando.</string>
     <string name="setup_battery_power">Batteria e alimentazione</string>
     <string name="setup_balanced_24_fps_recommended">Bilanciato: 24 fps (consigliato)</string>
     <string name="setup_smooth">Fluido</string>
     <string name="setup_saver">Risparmiatore</string>
-    <string name="setup_this_app_runs_a_live_video_transcoder_it_always_">Questa app esegue un transcodificatore video in diretta: assorbe sempre energia e riscalda il telefono. Tienilo sul caricatore USB della bici e spegni lo schermo del telefono durante la guida (la proiezione continua a funzionare).</string>
+    <string name="setup_this_app_runs_a_live_video_transcoder_it_always_">Questa app esegue un transcodificatore video in diretta: assorbe sempre energia e riscalda il telefono. Tienilo sul caricatore USB della moto e spegni lo schermo del telefono durante la guida (la proiezione continua a funzionare).</string>
     <string name="setup_bike_profile">Profilo della moto</string>
-    <string name="setup_auto_detect_from_the_bike_recommended">Auto: rilevamento dalla bici (consigliato)</string>
+    <string name="setup_auto_detect_from_the_bike_recommended">Auto: rilevamento dalla moto (consigliato)</string>
     <string name="setup_legacy">Compatibilità legacy</string>
-    <string name="setup_use_legacy_for_cfdl16_450sr_style_non_touch_dash">Utilizza Legacy per i trattini non touch in stile CFDL16/450SR se Auto sceglie la bici sbagliata. 800NK Avanzato = CFDL26 tocca 720×712. Si applica alla connessione successiva (Interrompi prima se si proietta).</string>
+    <string name="setup_use_legacy_for_cfdl16_450sr_style_non_touch_dash">Utilizza Legacy per i trattini non touch in stile CFDL16/450SR se Auto sceglie la moto sbagliata. 800NK Avanzato = CFDL26 tocca 720×712. Si applica alla connessione successiva (Interrompi prima se si proietta).</string>
     <string name="setup_handlebar">Manubrio</string>
     <string name="setup_double_tap_delay">Ritardo doppio tocco</string>
     <string name="setup_300_ms_balanced_recommended">300 ms — bilanciato (consigliato)</string>
@@ -274,7 +274,7 @@
     <string name="setup_let_the_app_re_project_on_its_own_when_the_bike_">Lascia che l'app avvia il mirroring da sola quando ritorni alla moto, anche con lo schermo spento o con il telefono in borsa. Richiede l'autorizzazione "Visualizza su altre app"; in caso contrario riceverai una notifica, toccala per ripristinare il collegamento.</string>
     <string name="setup_enable_seamless_resume">Abilita il ripristino automatico senza interruzioni</string>
     <string name="setup_wi_fi_logs">Wi‑Fi e registri</string>
-    <string name="setup_wi_fi_transport">Trasporto Wi‑Fi</string>
+    <string name="setup_wi_fi_transport">Modalità Wi‑Fi</string>
     <string name="setup_auto_ap_when_the_qr_advertises_it_else_wi_fi_dir">Modalità automatica: usa un punto di accesso (AP) se il codice QR lo indica, altrimenti usa Wi‑Fi Direct.</string>
     <string name="setup_ap">AP</string>
     <string name="setup_p2p">P2P</string>
@@ -286,7 +286,7 @@
     <string name="setup_import">Importa una configurazione</string>
     <string name="setup_supported_bikes">Moto supportate</string>
     <string name="setup_2026_alexandru_opencfmoto_agpl_3_0">© 2026 Alexandru · OpenCfMoto · AGPL‑3.0</string>
-    <string name="trip_trip_computer">Computer di viaggio</string>
+    <string name="trip_trip_computer">Computer di bordo</string>
     <string name="trip_saved_trips">Viaggi salvati</string>
     <string name="trip_waiting_for_gps">In attesa del GPS...</string>
     <string name="trip_distance">Distanza</string>
@@ -295,7 +295,7 @@
     <string name="trip_avg_speed">Velocità media</string>
     <string name="trip_speed_and_distance_come_from_the_phone_s_gps_the">La velocità e la distanza provengono dal GPS del telefono (la moto non condivide la telemetria tramite il collegamento via mirroring). Se state sotto un cielo pulito senza interferenze avrete la miglior precisione possibile.</string>
     <string name="trip_start">Inizia</string>
-    <string name="trip_reset">Resetta</string>
+    <string name="trip_reset">Reset</string>
     <string name="trips_trips">Viaggi</string>
     <string name="trips_previous_day">Giorno prima</string>
     <string name="trips_next_day">Giorno dopo</string>
