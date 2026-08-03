@@ -116,7 +116,7 @@
 	<string name="gpx_offline_map_building_routing">Mappa pronta — Calcolo percorso offline</string>
 	<string name="gpx_offline_map_routing_ready">Mappa offline + Calcolo pronto per \"%1$s\"</string>
 	<string name="gpx_offline_map_routing_unavailable">Mappa offline pronta per \"%1$s\" (navigazione non disponibile — riprova quando c’è segnale).)</string>
-    <string name="gpx_history">Storia</string>
+    <string name="gpx_history">Cronologia/string>
 	<string name="gpx_type_place_name">Scrivi il nome del posto</string>
 	<string name="gpx_searching">Cerco...</string>
 	<string name="gpx_need_gps_nearby_poi">È necessaria una posizione GPS per vedere i POI nelle vicinanze.</string>
