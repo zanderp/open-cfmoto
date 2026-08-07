@@ -23,7 +23,6 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v7
       - name: Check translation key parity
         run: python3 scripts/check_translations.py
