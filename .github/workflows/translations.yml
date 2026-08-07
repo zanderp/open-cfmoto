@@ -1,0 +1,26 @@
+name: Translations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/src/main/res/values/strings.xml"
+      - "app/src/main/res/values-*/strings.xml"
+      - "scripts/check_translations.py"
+      - ".github/workflows/translations.yml"
+  pull_request:
+    paths:
+      - "app/src/main/res/values/strings.xml"
+      - "app/src/main/res/values-*/strings.xml"
+      - "scripts/check_translations.py"
+      - ".github/workflows/translations.yml"
+
+jobs:
+  parity:
+    name: Key parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check translation key parity
+        run: python3 scripts/check_translations.py
