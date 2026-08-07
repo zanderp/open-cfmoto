@@ -8,7 +8,16 @@ on:
       - "app/src/main/res/values-*/strings.xml"
       - "scripts/check_translations.py"
       - ".github/workflows/translations.yml"
+  # Same-repo PRs (and local branches opened against this repo).
   pull_request:
+    paths:
+      - "app/src/main/res/values/strings.xml"
+      - "app/src/main/res/values-*/strings.xml"
+      - "scripts/check_translations.py"
+      - ".github/workflows/translations.yml"
+  # Fork PRs into upstream: pull_request does not run workflows from the fork.
+  pull_request_target:
+    types: [opened, synchronize, reopened]
     paths:
       - "app/src/main/res/values/strings.xml"
       - "app/src/main/res/values-*/strings.xml"
@@ -19,8 +28,20 @@ jobs:
   parity:
     name: Key parity
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Avoid duplicate runs on same-repo PRs (both events would fire).
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository ||
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.head.repo.full_name != github.repository
     steps:
       - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Check translation key parity
         run: python3 scripts/check_translations.py
