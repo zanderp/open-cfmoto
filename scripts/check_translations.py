@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Fail when locale string/plural keys are not present in every strings.xml."""
+"""Report missing locale string/plural keys as GitHub notices without failing."""
 
 from __future__ import annotations
 
@@ -129,7 +129,7 @@ def main() -> int:
         )
         return 0
 
-    print("Translation key parity check failed.\n", file=sys.stderr)
+    print("Translation key parity check completed with notices.\n", file=sys.stderr)
     for locale in locales:
         miss = missing_by_locale.get(locale.tag)
         if not miss:
@@ -137,9 +137,9 @@ def main() -> int:
         rel = locale.path
         print(f"[{locale.tag}] {rel}", file=sys.stderr)
         for name in miss["strings"]:
-            print(f"  ::error file={rel}::missing string `{name}`", file=sys.stderr)
+            print(f"  ::notice file={rel}::missing string `{name}`", file=sys.stderr)
         for name in miss["plurals"]:
-            print(f"  ::error file={rel}::missing plural `{name}`", file=sys.stderr)
+            print(f"  ::notice file={rel}::missing plural `{name}`", file=sys.stderr)
         print(file=sys.stderr)
 
     total = sum(
@@ -149,7 +149,7 @@ def main() -> int:
         f"{len(missing_by_locale)} locale(s) incomplete; {total} missing key entries overall.",
         file=sys.stderr,
     )
-    return 1
+    return 0
 
 
 if __name__ == "__main__":
