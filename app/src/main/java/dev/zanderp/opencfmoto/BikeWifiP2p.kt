@@ -44,8 +44,9 @@ import kotlin.math.abs
 object BikeWifiP2p {
 
     private const val TAG = "[P2P]"
-    /** Longer window for non-DIRECT-* MAC joins (Zontes / crowded peer lists). */
-    private const val CONNECT_TIMEOUT_MS = 40_000L
+    /** Default window for non-DIRECT-* MAC joins (Zontes / crowded peer lists). Callers can pass a
+     *  shorter [connect] timeout when a SoftAP fallback exists (see [MainActivity]). */
+    const val CONNECT_TIMEOUT_MS = 40_000L
     private const val IP_POLL_TIMEOUT_MS = 10_000L
     private const val IP_POLL_INTERVAL_MS = 500L
 
@@ -69,6 +70,10 @@ object BikeWifiP2p {
         onConnected: (bindIp: Inet4Address, gatewayIp: Inet4Address) -> Unit,
         onFailed: (reason: String) -> Unit,
         log: (String) -> Unit,
+        // How long to wait for a P2P group before failing over. When the QR also advertises a SoftAP
+        // (a proven fallback), the caller passes a short value so a phone that can't form a P2P group
+        // fails over in seconds instead of burning the full window. Default keeps prior behaviour.
+        timeoutMs: Long = CONNECT_TIMEOUT_MS,
     ) {
         stop(log) // clean any prior attempt
         active = true
@@ -108,7 +113,7 @@ object BikeWifiP2p {
             attemptMacJoin(mgr, chan, qr, log)
         }
 
-        startTimeout(onFailed, log)
+        startTimeout(onFailed, log, timeoutMs)
     }
 
     @SuppressLint("MissingPermission")
@@ -376,12 +381,12 @@ object BikeWifiP2p {
         return null
     }
 
-    private fun startTimeout(onFailed: (String) -> Unit, log: (String) -> Unit) {
+    private fun startTimeout(onFailed: (String) -> Unit, log: (String) -> Unit, timeoutMs: Long) {
         cancelTimeout()
         timeoutThread = thread(name = "p2p-timeout", isDaemon = true) {
-            try { Thread.sleep(CONNECT_TIMEOUT_MS) } catch (_: InterruptedException) { return@thread }
+            try { Thread.sleep(timeoutMs) } catch (_: InterruptedException) { return@thread }
             if (active && !connected) {
-                fail(onFailed, log, "no P2P group formed within ${CONNECT_TIMEOUT_MS / 1000}s")
+                fail(onFailed, log, "no P2P group formed within ${timeoutMs / 1000}s")
             }
         }
     }

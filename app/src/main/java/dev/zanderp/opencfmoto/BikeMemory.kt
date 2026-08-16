@@ -31,6 +31,9 @@ object BikeMemory {
     private const val KEY_RAW = "last_qr_raw"
     private const val KEY_NAME = "last_bike_name"
 
+    // Per-bike winning Wi-Fi transport ("AP" | "P2P"), keyed by the (stable) dash SSID.
+    private const val KEY_TRANSPORT_PREFIX = "transport_"
+
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -100,6 +103,24 @@ object BikeMemory {
             .remove(KEY_LIST).remove(KEY_SELECTED)
             .remove(KEY_RAW).remove(KEY_NAME)
             .apply()
+    }
+
+    /**
+     * The Wi-Fi transport ("AP" | "P2P") that last produced a live link for [ssid], or null if we've
+     * never connected this bike. Lets the connect path skip the transport that doesn't work on this
+     * phone instead of burning its timeout every time (see [setWinningTransport]).
+     */
+    fun winningTransport(ctx: Context, ssid: String): String? =
+        if (ssid.isBlank()) null else prefs(ctx).getString("$KEY_TRANSPORT_PREFIX$ssid", null)
+
+    /**
+     * Remember which transport just got Wi-Fi up for this bike. Some dashes advertise Wi-Fi Direct
+     * (DIRECT-* SSID) yet never form a P2P group on a given phone; the app then falls back to the
+     * SoftAP after a long timeout. Recording the winner makes every later connect go straight to it.
+     */
+    fun setWinningTransport(ctx: Context, ssid: String, transport: String) {
+        if (ssid.isBlank()) return
+        prefs(ctx).edit().putString("$KEY_TRANSPORT_PREFIX$ssid", transport).apply()
     }
 
     // ---- convenience accessors used across the app (selected bike) ----

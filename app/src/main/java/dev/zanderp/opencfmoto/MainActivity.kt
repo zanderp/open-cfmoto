@@ -1004,13 +1004,26 @@ class MainActivity : AppCompatActivity() {
                     (qr.ssid.startsWith("DIRECT-", ignoreCase = true) &&
                         (qr.supportsP2p || !qr.supportsAp))
         }
+        // Per-bike memory refines AUTO only (an explicit P2P/AP setting is the rider's call): once a
+        // transport has produced a live link for THIS bike, use it and skip the dead path. Some dashes
+        // advertise DIRECT-* + SoftAP, so AUTO tries P2P first and burns the whole timeout on every
+        // connect even when P2P never forms a group on this phone, while SoftAP connects in seconds.
+        val remembered = if (transport == WifiTransport.AUTO) BikeMemory.winningTransport(this, qr.ssid) else null
+        val effUseP2p = when {
+            remembered == "AP" && qr.supportsAp -> false
+            remembered == "P2P" && qr.supportsP2p -> true
+            else -> useP2p
+        }
+        if (remembered != null && effUseP2p != useP2p) {
+            log("→ transport memory: '$remembered' connected before for '${qr.ssid}' — using it, skipping the dead path")
+        }
         if (transport == WifiTransport.P2P && !useP2p) {
             log(
                 "→ Setup Wi‑Fi transport is P2P but QR is SoftAP-only " +
                     "(action=${qr.action} ssid=${qr.ssid}) — joining SoftAP instead",
             )
         }
-        if (useP2p) {
+        if (effUseP2p) {
             val isDirect = qr.ssid.startsWith("DIRECT-", ignoreCase = true)
             // P2P-only QRs with a SoftAP-style SSID but no MAC burn ~40s on MAC ERROR
             // (Voge-5G / ZT5G / etc.). Prefer SoftAP immediately when we have a password.
@@ -1036,6 +1049,8 @@ class MainActivity : AppCompatActivity() {
             psk = qr.pwd,
             onAvailable = { network ->
                 WifiGate.cancelNotification(applicationContext)
+                // SoftAP got Wi-Fi up for this bike → remember it so AUTO skips P2P next time.
+                BikeMemory.setWinningTransport(applicationContext, qr.ssid, "AP")
                 if (gateOnAaSteady) {
                     LogBus.log("→ bike Wi-Fi bound (waiting for AA video to go steady)")
                     BikeLink.markWifiReady(network)
@@ -1183,11 +1198,25 @@ class MainActivity : AppCompatActivity() {
     private fun joinWifiP2p(qr: QrData, gateOnAaSteady: Boolean) {
         if (!WifiGate.ensureEnabledOrPrompt(this)) return
         LogBus.log("→ joining via Wi‑Fi Direct (P2P)")
+        // How long to wait for a P2P group before failing over to SoftAP:
+        //  - "P2P" remembered  → proven P2P device on this phone; give it the full window.
+        //  - SoftAP advertised → a working fallback exists, so bail fast (6s) when P2P is hopeless
+        //    (some phones ERROR on every join attempt in <1s but the group never forms).
+        //  - otherwise (P2P-only) → full window; there is nothing to fall back to.
+        val known = BikeMemory.winningTransport(this, qr.ssid)
+        val p2pTimeout = when {
+            known == "P2P" -> BikeWifiP2p.CONNECT_TIMEOUT_MS
+            qr.supportsAp && qr.pwd.isNotEmpty() -> 6_000L
+            else -> BikeWifiP2p.CONNECT_TIMEOUT_MS
+        }
         BikeWifiP2p.connect(
             context = applicationContext,
             qr = qr,
+            timeoutMs = p2pTimeout,
             onConnected = { bindIp, gatewayIp ->
                 WifiGate.cancelNotification(applicationContext)
+                // P2P actually formed a group for this bike → remember it (some DIRECT-* bikes need P2P).
+                BikeMemory.setWinningTransport(applicationContext, qr.ssid, "P2P")
                 if (gateOnAaSteady) {
                     LogBus.log("→ P2P bound (waiting for AA video); bike=${gatewayIp.hostAddress}")
                     BikeLink.markP2pReady(bindIp, gatewayIp)
@@ -1219,6 +1248,8 @@ class MainActivity : AppCompatActivity() {
                     psk = qr.pwd,
                     onAvailable = { network ->
                         WifiGate.cancelNotification(applicationContext)
+                        // SoftAP fallback connected → remember AP so AUTO goes straight here next time.
+                        BikeMemory.setWinningTransport(applicationContext, qr.ssid, "AP")
                         if (gateOnAaSteady) BikeLink.markWifiReady(network)
                         else {
                             ConnectionState.set(Phase.PXC_CONNECTING)
