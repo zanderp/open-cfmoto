@@ -174,15 +174,23 @@ class AndroidAutoService : Service() {
             return
         }
         // Only park for a real Wi-Fi outage — a dash-only drop with Wi-Fi still up is the prober's job.
-        if (BikeWifi.currentNetwork == null) {
+        val apConnected = BikeWifi.currentNetwork != null
+        val p2pConnected = BikeWifiP2p.isConnected
+        if (!bikeTransportConnected(apConnected, p2pConnected)) {
             if (AppSettings.keepWifiAfterDisconnect(this)) {
                 wifiDownSince = 0L
                 return
             }
             val now = System.currentTimeMillis()
-            if (wifiDownSince == 0L) wifiDownSince = now
+            if (wifiDownSince == 0L) {
+                wifiDownSince = now
+                LogBus.log("[AA] bike transport unavailable (ap=$apConnected p2p=$p2pConnected) — starting grace")
+            }
             else if (now - wifiDownSince > GRACE_MS) parkAa()
         } else {
+            if (wifiDownSince != 0L) {
+                LogBus.log("[AA] bike transport recovered (ap=$apConnected p2p=$p2pConnected)")
+            }
             wifiDownSince = 0L
         }
     }
@@ -682,6 +690,9 @@ class AndroidAutoService : Service() {
         private const val ERROR_COOLDOWN_MS = 20_000L  // min gap between re-arm attempts after ERROR
         private const val GRACE_MS = 180_000L          // SoftAP blinks; 60s was parking mid-ride
         private const val RESUME_STEADY_TIMEOUT_MS = 12_000L // wait for AA video before falling back
+
+        internal fun bikeTransportConnected(apConnected: Boolean, p2pConnected: Boolean): Boolean =
+            apConnected || p2pConnected
 
         /** Intent extra: MainActivity should re-project on open (BAL-safe resume after a park). */
         const val EXTRA_RESUME = "dev.zanderp.opencfmoto.RESUME_PROJECTION"
