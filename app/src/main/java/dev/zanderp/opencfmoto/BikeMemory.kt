@@ -34,6 +34,9 @@ object BikeMemory {
     // Per-bike winning Wi-Fi transport ("AP" | "P2P"), keyed by the (stable) dash SSID.
     private const val KEY_TRANSPORT_PREFIX = "transport_"
 
+    // Per-bike projection mode ("CFMOTO" | "ANDROID_AUTO"), chosen once at pairing.
+    private const val KEY_MODE_PREFIX = "mode_"
+
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -121,6 +124,18 @@ object BikeMemory {
     fun setWinningTransport(ctx: Context, ssid: String, transport: String) {
         if (ssid.isBlank()) return
         prefs(ctx).edit().putString("$KEY_TRANSPORT_PREFIX$ssid", transport).apply()
+    }
+
+    /**
+     * The projection mode ("CFMOTO" | "ANDROID_AUTO") chosen for [ssid] when pairing, or null if not
+     * chosen yet (→ the first-connect popup asks). Kept per bike, not on the dashboard.
+     */
+    fun bikeMode(ctx: Context, ssid: String): String? =
+        if (ssid.isBlank()) null else prefs(ctx).getString("$KEY_MODE_PREFIX$ssid", null)
+
+    fun setBikeMode(ctx: Context, ssid: String, mode: String) {
+        if (ssid.isBlank()) return
+        prefs(ctx).edit().putString("$KEY_MODE_PREFIX$ssid", mode).apply()
     }
 
     // ---- convenience accessors used across the app (selected bike) ----

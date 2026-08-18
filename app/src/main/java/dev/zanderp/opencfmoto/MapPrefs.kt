@@ -17,11 +17,12 @@ enum class MapChrome(val label: String, val color: Int) {
     FOREST("Forest", 0xFF0E1A14.toInt()),
 }
 
-/** How to pick roads: Fast = quickest normal roads; Fun = twistier / scenic detours. */
-enum class RouteMode(val label: String) {
-    FAST("Fast"),
-    FUN("Fun"),
-}
+/**
+ * How to pick roads: Fast = quickest normal roads; Fun = twistier / scenic detours. Relocated to the
+ * Overtake library (Stage 0b); this `typealias` keeps `RouteMode.FAST` / `.FUN` / `.name` / `.valueOf`
+ * / `.label` working unchanged.
+ */
+typealias RouteMode = dev.overtake.maps.model.RouteMode
 
 /**
  * Map / GPX rider preferences (units, voice, next-stop, chrome, arrive, routing).
@@ -153,14 +154,10 @@ object MapPrefs {
     )
 }
 
-/** Routing knobs passed into OSRM / ORS / fun via generators. */
-data class RouteOptions(
-    val mode: RouteMode = RouteMode.FAST,
-    val avoidTolls: Boolean = false,
-    val avoidHighways: Boolean = false,
-    /** Extra alternatives beyond the primary (OSRM `alternatives=N` → up to N+1 total). */
-    val maxAlternatives: Int = 4,
-    val circuitKm: Int = 60,
-) {
-    val wantsAvoids: Boolean get() = avoidTolls || avoidHighways
-}
+/**
+ * Routing knobs passed into OSRM / ORS / fun via generators. Relocated to the Overtake library
+ * (Stage 0b); this `typealias` points at [dev.overtake.maps.model.RouteOptions], whose fields
+ * (mode, avoidTolls, avoidHighways, maxAlternatives, circuitKm) and computed `wantsAvoids` mirror the
+ * fork's original — so `RouteOptions(...)`, `.copy(...)` and every field read compile unchanged.
+ */
+typealias RouteOptions = dev.overtake.maps.model.RouteOptions

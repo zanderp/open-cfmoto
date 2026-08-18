@@ -245,7 +245,7 @@ class AndroidAutoService : Service() {
         // doesn't linger onto STREAMING as "Connected … — will resume when the bike is back".
         ConnectionState.set(Phase.STARTING_AA, BikeMemory.lastBikeName(applicationContext) ?: "")
         reacquireLocks()
-        updateNotification(getString(R.string.notif_aa_title), getString(R.string.notif_aa_reconnecting))
+        updateNotification(getString(if (GpxSession.active) R.string.notif_map_title else R.string.notif_aa_title), getString(R.string.notif_aa_reconnecting))
 
         startReceiver()
         if (receiver == null) { resumeFailedFallback(); return }
@@ -301,6 +301,12 @@ class AndroidAutoService : Service() {
         try {
             if (on) {
                 reacquireLocks() // CPU + Wi‑Fi locks — screen-off must not stall the map pipeline
+                // Own-map projection routes the handlebar (AVRCP) through [MediaButtonBridge] → the map
+                // sinks. setGpxScreenWake() short-circuits straight here when the FGS is ALREADY up
+                // (e.g. a lingering post-onTaskRemoved service, or an AA→Map switch), skipping the
+                // onStartCommand(ACTION_GPX_WAKE) path that would otherwise start the bridge — so start
+                // it here too. Idempotent (no-op once running) and gated on BT, so AA is unaffected.
+                ensureMediaButtons()
                 if (screenWakeLock?.isHeld == true) return
                 val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
                 @Suppress("DEPRECATION")
@@ -427,8 +433,8 @@ class AndroidAutoService : Service() {
      */
     fun updateForegroundType(allowMicrophone: Boolean = true): Boolean {
         val notification = buildNotification(
-            getString(R.string.notif_aa_title),
-            getString(R.string.notif_aa_receiving),
+            getString(if (GpxSession.active) R.string.notif_map_title else R.string.notif_aa_title),
+            getString(if (GpxSession.active) R.string.notif_map_text else R.string.notif_aa_receiving),
             resume = false,
         )
         val hasLocation = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==

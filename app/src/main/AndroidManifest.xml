@@ -38,6 +38,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- Keeps a large Mapsforge offline-map download alive as a dataSync foreground service. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Best-effort close of the official CFMoto/EasyConnect app when it's holding the bike's
@@ -47,6 +49,12 @@
     <!-- Optional: grants a background-activity-launch exemption so the service can relaunch Google
          Android Auto on its own after a long outage (phone in a bag, screen off) — seamless auto-resume. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Background auto-connect: let the system WAKE us (CockpitCompanionService) when the paired bike's
+         Wi‑Fi comes into range, and let that presence callback start a foreground service + run in the
+         background. All are normal permissions auto-granted to a CDM-associated app. -->
+    <uses-permission android:name="android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE" />
+    <uses-permission android:name="android.permission.REQUEST_COMPANION_START_FOREGROUND_SERVICES_FROM_BACKGROUND" />
+    <uses-permission android:name="android.permission.REQUEST_COMPANION_RUN_IN_BACKGROUND" />
     <uses-feature
         android:name="android.hardware.camera.any"
         android:required="false" />
@@ -78,6 +86,19 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- Cockpit redesign (Compose). Second launcher so the new UI can be previewed on the bike
+             while the classic MainActivity keeps working; becomes primary as screens migrate. -->
+        <activity
+            android:name=".ui.CockpitActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|density|uiMode"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
@@ -131,6 +152,47 @@
             android:name=".AndroidAutoService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice|location|microphone" />
+        <!-- Background auto-connect: the system binds this and calls onDeviceAppeared() when the paired
+             bike's Wi‑Fi is near (even with the app closed), then it connects in CFMOTO own-map mode.
+             The exact action + BIND_COMPANION_DEVICE_SERVICE permission + exported=true are the platform
+             contract — a malformed CompanionDeviceService silently never fires. It promotes to a
+             connectedDevice foreground service for the ride. -->
+        <service
+            android:name=".connection.CockpitCompanionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_COMPANION_DEVICE_SERVICE"
+            android:foregroundServiceType="connectedDevice">
+            <intent-filter>
+                <action android:name="android.companion.CompanionDeviceService" />
+            </intent-filter>
+        </service>
+        <!-- Keeps a big Mapsforge `.map` download running (with an ongoing % notification) when the
+             rider leaves the maps screen; the transfer itself is the app-scoped library worker. -->
+        <service
+            android:name=".MapDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <!-- Cockpit now-playing: a do-nothing notification listener whose grant unlocks reading the
+             phone's active media sessions for the music panel (see NowPlayingListener / NowPlaying). -->
+        <service
+            android:name=".cockpit.NowPlayingListener"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+        <!-- Auto-persist the in-app language choice (AppCompatDelegate.setApplicationLocales) on
+             API < 33; on API 33+ the framework LocaleManager stores it. The service is a metadata
+             holder only (android:enabled="false"), never actually started. -->
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
             android:value="barcode" />

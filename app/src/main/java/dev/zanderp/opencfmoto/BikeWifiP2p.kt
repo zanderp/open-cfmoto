@@ -44,9 +44,14 @@ import kotlin.math.abs
 object BikeWifiP2p {
 
     private const val TAG = "[P2P]"
-    /** Default window for non-DIRECT-* MAC joins (Zontes / crowded peer lists). Callers can pass a
-     *  shorter [connect] timeout when a SoftAP fallback exists (see [MainActivity]). */
-    const val CONNECT_TIMEOUT_MS = 40_000L
+    /**
+     * How long to wait for a P2P group before failing over to the SoftAP/AP join. A working P2P group
+     * forms within a few seconds; the previous 40s only burned time when P2P was never going to connect
+     * (CFMoto 450NK: discoverPeers/credential/MAC all ERROR instantly, then "loading" ~40s until this
+     * fired). 12s is ample and gets the reliable AP path started far sooner. Public so callers can pass
+     * an even shorter [connect] timeout when a SoftAP fallback exists (see [MainActivity]).
+     */
+    const val CONNECT_TIMEOUT_MS = 12_000L
     private const val IP_POLL_TIMEOUT_MS = 10_000L
     private const val IP_POLL_INTERVAL_MS = 500L
 

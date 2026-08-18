@@ -396,5 +396,18 @@ class HudViewActivity : AppCompatActivity() {
                 },
             )
         }
+
+        /**
+         * Open the live in-app "Dash view": the Android Auto video mirrored onto the phone (Google Maps
+         * / Waze as projected to the bike dash), with the on-screen controls. No extras = live-AA mode.
+         * When nothing is projecting it shows a hint. Reachable from the cockpit only in AA mode.
+         */
+        fun start(ctx: android.content.Context) {
+            ctx.startActivity(
+                Intent(ctx, HudViewActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                },
+            )
+        }
     }
 }

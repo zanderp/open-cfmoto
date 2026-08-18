@@ -39,7 +39,9 @@ import dev.zanderp.opencfmoto.aa.AaInput
  * Volume is watched with a [ContentObserver] rather than a remote-volume `VolumeProvider`: the bike
  * sends absolute volume, so there is no volume KEY event to intercept.
  *
- * All of it is gated on [ButtonMode] — toggle off and volume/media behave completely normally.
+ * All of it is gated on [capturingForDash] — in Android Auto that IS [ButtonMode]; while our own
+ * map (Overtake) projects it also engages when ▲/▼ are set to navigate ([HandlebarVolumeMode]).
+ * Toggle "control AA" off (or set ▲/▼ to Volume on your own map) and volume/media behave normally.
  */
 class MediaButtonBridge(private val context: Context, private val log: (String) -> Unit) {
 
@@ -83,14 +85,14 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
     private var lastReclaimAt = 0L
     private val reclaimRunnable = Runnable {
         reclaimPending = false
-        if (ButtonMode.isControlAa(context)) reclaimCapture("focus-loss")
+        if (capturingForDash()) reclaimCapture("focus-loss")
     }
     private var keepAliveTicks = 0
     /** Last time a bike media key was handled — skip focus re-request while the rider is tapping. */
     private var lastKeyAt = 0L
     private val keepAliveRunnable = object : Runnable {
         override fun run() {
-            if (!ButtonMode.isControlAa(context) || session == null) return
+            if (!capturingForDash() || session == null) return
             keepAliveTicks++
             // Session refresh only while keys are flying — re-requesting focus mid-tap makes the
             // BT stack re-deliver the same press (looks like "need 3 taps for one step").
@@ -100,6 +102,25 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
             handler.postDelayed(this, KEEP_ALIVE_MS)
         }
     }
+
+    /**
+     * Should the bridge CAPTURE the handlebar (pin ▲/▼, hold AVRCP, route presses to dash nav)
+     * rather than leave the buttons to music / phone volume? Projection-agnostic — the buttons
+     * drive whichever surface is on the dash:
+     *   • Android Auto: [ButtonMode.isControlAa] (unchanged — the rider's "control AA" toggle), OR
+     *   • our own map (Overtake): the map is projecting ([GpxSession.active]) AND ▲/▼ are set to
+     *     navigate ([HandlebarVolumeMode.isNavigate], default on).
+     *
+     * The own-map leg additionally requires isNavigate so a rider who wants ▲/▼ as plain phone
+     * volume on their own map is never captured. During AA projection [GpxSession.active] is false,
+     * so this reduces to exactly [ButtonMode.isControlAa] — AA behaviour is unchanged. Volume
+     * PINNING is still gated by [ButtonPresencePrefs.shouldPinVolume] + [HandlebarVolumeMode] inside
+     * [maybePinVolume], so an ABSENT rocker is never held hostage. The captured direction is routed
+     * to [MapInputBridge] when the map owns the sinks and to Android Auto otherwise (see [key]/[scroll]).
+     */
+    private fun capturingForDash(): Boolean =
+        ButtonMode.isControlAa(context) ||
+            (GpxSession.active && HandlebarVolumeMode.isNavigate(context))
 
     fun start() {
         handler.post {
@@ -117,7 +138,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
                 )
                 session = s
                 instance = this
-                val on = ButtonMode.isControlAa(context)
+                val on = capturingForDash()
                 if (on) takeMediaFocus()
                 s.isActive = on
                 s.setPlaybackToLocal(mediaAttrs)
@@ -144,7 +165,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
         val poll = object : Runnable {
             var waited = 0L
             override fun run() {
-                if (reasserted || !ButtonMode.isControlAa(context)) return
+                if (reasserted || !capturingForDash()) return
                 if (BikeLink.prober?.isStreaming == true) {
                     reasserted = true
                     handler.postDelayed({ reassert() }, REASSERT_SETTLE_MS)
@@ -159,7 +180,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
     }
 
     private fun reassert() {
-        if (!ButtonMode.isControlAa(context)) return
+        if (!capturingForDash()) return
         try {
             // Soft re-announce: flip session active + refresh metadata/pin. Avoid abandon/re-take of
             // audio focus — that hard pause/resume cycle is what made music/nav sound "stuck" on
@@ -219,7 +240,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
      */
     fun yieldForAaAudio(@Suppress("UNUSED_PARAMETER") holdMs: Long) {
         handler.post {
-            if (!ButtonMode.isControlAa(context)) return@post
+            if (!capturingForDash()) return@post
             log("[BTN] AA audio active — refreshing button session (music keeps playing)")
             startSilence()
             refreshPlayingAppearance(reason = "aa-audio")
@@ -262,7 +283,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
             else -> "focus=$change"
         }
         log("[BTN] audio focus → $name")
-        if (!ButtonMode.isControlAa(context)) return
+        if (!capturingForDash()) return
         when (change) {
             AudioManager.AUDIOFOCUS_GAIN -> {
                 startSilence()
@@ -279,7 +300,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
     }
 
     private fun scheduleReclaim(reason: String) {
-        if (!ButtonMode.isControlAa(context)) return
+        if (!capturingForDash()) return
         val now = SystemClock.elapsedRealtime()
         if (now - lastReclaimAt < RECLAIM_MIN_GAP_MS) {
             if (!reclaimPending) {
@@ -301,7 +322,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
 
     /** Pull AVRCP back with duckable nav focus + session flip — does not pause music. */
     private fun reclaimCapture(reason: String) {
-        if (!ButtonMode.isControlAa(context)) return
+        if (!capturingForDash()) return
         lastReclaimAt = SystemClock.elapsedRealtime()
         log("[BTN] reclaiming media buttons ($reason) — nav duck (music keeps playing)")
         try {
@@ -310,7 +331,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
             session?.isActive = false
             handler.postDelayed({
                 try {
-                    if (!ButtonMode.isControlAa(context)) return@postDelayed
+                    if (!capturingForDash()) return@postDelayed
                     refreshPlayingAppearance(reason = "reclaim")
                     session?.isActive = true
                     maybePinVolume("reclaim")
@@ -326,7 +347,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
 
     private fun startKeepAlive() {
         handler.removeCallbacks(keepAliveRunnable)
-        if (ButtonMode.isControlAa(context)) {
+        if (capturingForDash()) {
             handler.postDelayed(keepAliveRunnable, KEEP_ALIVE_MS)
         }
     }
@@ -466,6 +487,15 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
      * never sends ▲/▼ must not hold STREAM_MUSIC hostage.
      */
     private fun maybePinVolume(reason: String) {
+        // ▲/▼ set to Volume mode: never pin — the rocker must move the phone volume normally, and with
+        // nothing pinned the volume observer fires no navigation (it early-returns on pinnedVolume<0).
+        if (!HandlebarVolumeMode.isNavigate(context)) {
+            if (pinnedVolume >= 0) {
+                log("[BTN] skip pin ($reason) — ▲/▼ set to Volume; unpinning so volume works normally")
+                unpinVolume()
+            }
+            return
+        }
         if (!ButtonPresencePrefs.shouldPinVolume(context)) {
             if (pinnedVolume >= 0) {
                 log("[BTN] skip pin ($reason) — volume rocker ABSENT; unpinning")
@@ -512,11 +542,11 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
 
     private fun startAbsentVolumeProbe() {
         cancelAbsentVolumeProbe()
-        if (!ButtonMode.isControlAa(context)) return
+        if (!capturingForDash()) return
         if (ButtonPresencePrefs.volumeRocker(context) != ButtonPresence.UNKNOWN) return
         val r = object : Runnable {
             override fun run() {
-                if (!ButtonMode.isControlAa(context)) return
+                if (!capturingForDash()) return
                 if (ButtonPresencePrefs.volumeRocker(context) != ButtonPresence.UNKNOWN) return
                 val streaming = BikeLink.prober?.isStreaming == true
                 if (!streaming) {
@@ -540,7 +570,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
     /** Re-arm the absent probe after Teach resets presence to UNKNOWN, or capture toggles on. */
     fun refreshVolumePresencePolicy() {
         handler.post {
-            if (!ButtonMode.isControlAa(context)) return@post
+            if (!capturingForDash()) return@post
             if (ButtonPresencePrefs.shouldPinVolume(context)) maybePinVolume("presence-refresh")
             else unpinVolume()
             startAbsentVolumeProbe()
@@ -573,7 +603,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
             userVolume = v
             ignoreVolumeChanges = true
             try {
-                if (ButtonMode.isControlAa(context) && pinnedVolume >= 0) {
+                if (capturingForDash() && pinnedVolume >= 0) {
                     pinnedVolume = v.coerceIn(1, (max - 1).coerceAtLeast(1))
                     audio.setStreamVolume(AudioManager.STREAM_MUSIC, pinnedVolume, 0)
                 } else {
@@ -607,7 +637,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
             override fun onChange(selfChange: Boolean) {
                 if (ignoreVolumeChanges) return
                 val now = try { audio.getStreamVolume(AudioManager.STREAM_MUSIC) } catch (e: Exception) { return }
-                if (!ButtonMode.isControlAa(context) || pinnedVolume < 0) return
+                if (!capturingForDash() || pinnedVolume < 0) return
                 if (now == pinnedVolume) return   // our own re-pin, or nothing to do
 
                 val jump = now - pinnedVolume            // signed, in Android volume steps
@@ -719,7 +749,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
 
     /** Run whatever [ButtonMap] says this gesture should do (read per press, so changes are live). */
     private fun run(gesture: ButtonGesture) {
-        if (!ButtonMode.isControlAa(context)) return   // media mode: leave the buttons to music
+        if (!capturingForDash()) return   // not capturing: leave the buttons to music / phone volume
         val action = ButtonMap.get(context, gesture)
         log("[BTN] ${gesture.label} → ${action.label}")
         perform(action)

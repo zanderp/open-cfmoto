@@ -3,13 +3,16 @@
 // Part of OpenCfMoto. Free software under the GNU AGPL v3 or later; see LICENSE and NOTICE.
 package dev.zanderp.opencfmoto
 
+import dev.overtake.maps.model.Lane
+import dev.overtake.maps.model.RouteStep
+
 import kotlin.math.*
 
 /** Ride maths for OpenCfMoto Map / GPX: ETA, elevation, turn and waypoint prompts on the dash. */
 class GpxNav(
     private val track: GpxTrack,
     /** OSRM guidance steps for road routes; null/empty falls back to geometry turn inference. */
-    private val steps: List<OsrmRouter.RouteStep>? = null,
+    private val steps: List<RouteStep>? = null,
 ) {
     val cumDistM: DoubleArray
     val totalM: Double
@@ -523,7 +526,7 @@ class GpxNav(
         }
 
         /** Compact arrows for the lanes you should be in; null when no usable lane data. */
-        fun laneLabel(lanes: List<OsrmRouter.Lane>?): String? {
+        fun laneLabel(lanes: List<Lane>?): String? {
             if (lanes.isNullOrEmpty()) return null
             val valid = lanes.filter { it.valid }
             val use = if (valid.isNotEmpty()) valid else return null

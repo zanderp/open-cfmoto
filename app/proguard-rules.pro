@@ -28,3 +28,9 @@
 # OpenCfMoto entry points + BuildConfig.
 -keep class dev.zanderp.opencfmoto.MainActivity { *; }
 -keep class dev.zanderp.opencfmoto.** { *; }
+
+# Vendored BRouter (:brouter). RoutingContext picks the cost model by reflection from a class name
+# in the routing profile (default btools.router.StdModel; car/kinematic profiles name the others),
+# so R8 can't see the reference — keep the models + their no-arg constructors.
+-keep class btools.router.**Model { <init>(); }
+-dontnote btools.**

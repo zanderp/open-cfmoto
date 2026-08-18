@@ -3,6 +3,11 @@
 // Part of OpenCfMoto. Free software under the GNU AGPL v3 or later; see LICENSE and NOTICE.
 package dev.zanderp.opencfmoto
 
+import dev.overtake.maps.search.NominatimSearch
+import dev.overtake.maps.OfflineManager
+import dev.overtake.maps.render.GpxOsmdroid
+import dev.overtake.maps.route.offline.OfflineAreasStore
+import dev.overtake.maps.route.offline.OfflinePoiIndex
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -28,8 +33,6 @@ import androidx.core.view.isVisible
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
-import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.geometry.LatLngBounds
 import java.io.File
 import java.io.FileOutputStream
 
@@ -64,6 +67,11 @@ class GpxActivity : AppCompatActivity() {
     private var offlineHighDetail = false
     private var offlineRadiusKm = 25
     private var offlineBusy = false
+    // True while the download is building offline ROUTING data (so tile-progress % doesn't overwrite
+    // the indeterminate "building routes" line). Mirrors OfflinePacksScreen's phase-gated progress UI.
+    private var offlineRouting = false
+    // The extracted offline-data manager (downloaded areas + offline routing data + raster cache).
+    private val offlineManager by lazy { overtakeOffline(this) }
 
     private val pickLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -679,9 +687,6 @@ class GpxActivity : AppCompatActivity() {
         downloadAreaAroundTrack()
     }
 
-    private fun zoomMax(): Int =
-        if (offlineHighDetail) GpxOsmdroid.AREA_ZOOM_HIGH_MAX else GpxOsmdroid.AREA_ZOOM_STANDARD_MAX
-
     private fun refreshOfflineControls() {
         offlineHereBtn.isEnabled = !offlineBusy
         offlineTrackBtn.isEnabled = !offlineBusy && (parsed?.points?.isNotEmpty() == true)
@@ -700,7 +705,7 @@ class GpxActivity : AppCompatActivity() {
     }
 
     private fun refreshOfflineList() {
-        val areas = OfflineAreasStore.list(this)
+        val areas = offlineManager.storedAreas()
         offlineList.removeAllViews()
         val rasterMb = GpxOsmdroid.rasterCacheBytes(this) / (1024 * 1024)
         offlineClearRasterBtn.text = getString(R.string.gpx_clear_cached_bike_tiles_mb, rasterMb)
@@ -714,9 +719,8 @@ class GpxActivity : AppCompatActivity() {
             for (a in areas) offlineList.addView(offlineRow(a))
         }
         // Fill in real vector sizes asynchronously.
-        MapOfflineManager.listAreas(this) { summaries ->
+        offlineManager.areaSizes { sizes ->
             runOnUiThread {
-                val byName = summaries.associateBy { it.name }
                 offlineList.removeAllViews()
                 if (areas.isEmpty()) {
                     offlineList.addView(TextView(this).apply {
@@ -725,7 +729,7 @@ class GpxActivity : AppCompatActivity() {
                         textSize = 13f
                     })
                 } else {
-                    for (a in areas) offlineList.addView(offlineRow(a, byName[a.name]?.sizeBytes ?: 0L))
+                    for (a in areas) offlineList.addView(offlineRow(a, sizes[a.name] ?: 0L))
                 }
             }
         }
@@ -756,7 +760,7 @@ class GpxActivity : AppCompatActivity() {
             setTextColor(ContextCompat.getColor(this@GpxActivity, R.color.text_primary))
             textSize = 15f
         })
-        val detail = if (a.zoomMax >= GpxOsmdroid.AREA_ZOOM_HIGH_MAX) {
+        val detail = if (a.zoomMax >= OfflineAreasStore.AREA_ZOOM_HIGH_MAX) {
             getString(R.string.gpx_high)
         } else {
             getString(R.string.gpx_standard)
@@ -779,10 +783,11 @@ class GpxActivity : AppCompatActivity() {
     }
 
     private fun deleteOfflineArea(a: OfflineAreasStore.Area) {
-        MapOfflineManager.deleteArea(this, a.name) { ok ->
+        // The library removes the MapLibre regions, the offline routing data (BRouter .rd5 + Overpass
+        // graph) and the registry entry in one call, so the classic hub deletes exactly what the
+        // native OfflinePacksScreen does.
+        offlineManager.delete(a.name) { ok ->
             runOnUiThread {
-                OfflineAreasStore.remove(this, a.name)
-                OfflineRoadGraph.deleteForArea(this, a.name)
                 refreshOfflineList()
                 Toast.makeText(
                     this,
@@ -834,7 +839,13 @@ class GpxActivity : AppCompatActivity() {
         downloadOfflineArea(name, north + pad, south - pad, east + pad, west - pad)
     }
 
-    /** Google-style offline: download the MapLibre vector region (OpenFreeMap) for this bbox. */
+    /**
+     * Google-style offline: download the MapLibre vector region (OpenFreeMap) for this bbox, then the
+     * offline routing data — driven through the shared library engine ([OfflineManager]) so the
+     * classic hub and the native OfflinePacksScreen run the identical download + route-build + persist
+     * flow. The library persists the area to the registry on tile success and reports whether offline
+     * routing data was obtained (`routed`); the UI here is unchanged.
+     */
     private fun downloadOfflineArea(
         name: String,
         north: Double,
@@ -843,105 +854,66 @@ class GpxActivity : AppCompatActivity() {
         west: Double,
     ) {
         if (offlineBusy) return
-        val zMax = zoomMax()
         offlineBusy = true
+        offlineRouting = false
         refreshOfflineControls()
         offlineAreaProgress.isVisible = true
         offlineAreaProgress.isIndeterminate = true
         progressLabel.text = getString(R.string.gpx_downloading_offline_map, name)
 
-        val bounds = LatLngBounds.Builder()
-            .include(LatLng(north, east))
-            .include(LatLng(south, west))
-            .build()
-        val styles = listOf(
-            MapLibreDashController.STYLE_DAY to false,
-            MapLibreDashController.STYLE_NIGHT to true,
-        )
-        MapOfflineManager.downloadArea(
-            this,
+        offlineManager.download(
             name,
-            bounds,
-            GpxOsmdroid.AREA_ZOOM_MIN.toDouble(),
-            zMax.toDouble(),
-            styles,
-            onProgress = { percent, bytes ->
+            OfflineManager.Bbox(north, south, east, west),
+            offlineHighDetail,
+            onPhase = { phase ->
                 runOnUiThread {
-                    offlineAreaProgress.isIndeterminate = false
-                    offlineAreaProgress.max = 100
-                    offlineAreaProgress.progress = percent.coerceIn(0, 100)
-                    progressLabel.text = getString(
-                        R.string.gpx_offline_map_progress,
-                        percent.coerceIn(0, 100),
-                        bytes / (1024 * 1024),
-                    )
+                    when (phase) {
+                        OfflineManager.Phase.ROUTING -> {
+                            offlineRouting = true
+                            offlineAreaProgress.isIndeterminate = true
+                            progressLabel.text = getString(R.string.gpx_offline_map_building_routing)
+                        }
+                        OfflineManager.Phase.TILES -> offlineRouting = false
+                    }
                 }
             },
-            onDone = { ok, message ->
-                if (!ok) {
-                    runOnUiThread {
-                        finishOfflineArea(name, north, south, east, west, zMax, vector = false, raster = false, message = message)
-                    }
-                } else {
-                    // Map tiles done → also build the free on-device routing graph for this area.
-                    runOnUiThread {
-                        offlineAreaProgress.isIndeterminate = true
-                        progressLabel.text = getString(R.string.gpx_offline_map_building_routing)
-                    }
-                    kotlin.concurrent.thread(name = "offline-route-build") {
-                        val routed = runCatching {
-                            OfflineRoadGraph.buildForArea(
-                                this, name, south, west, north, east,
-                                onProgress = { s -> runOnUiThread { progressLabel.text = s } },
-                            )
-                            true
-                        }.getOrElse { e ->
-                            LogBus.log("[route] offline routing build failed: ${e.message}")
-                            false
-                        }
-                        runOnUiThread {
-                            val msg = if (routed) {
-                                getString(R.string.gpx_offline_map_routing_ready, name)
-                            } else {
-                                getString(R.string.gpx_offline_map_routing_unavailable, name)
-                            }
-                            finishOfflineArea(name, north, south, east, west, zMax, vector = true, raster = false, message = msg)
-                        }
+            onProgress = { percent, bytes ->
+                runOnUiThread {
+                    // While building routes we keep the indeterminate "building routing" line.
+                    if (!offlineRouting) {
+                        offlineAreaProgress.isIndeterminate = false
+                        offlineAreaProgress.max = 100
+                        offlineAreaProgress.progress = percent.coerceIn(0, 100)
+                        progressLabel.text = getString(
+                            R.string.gpx_offline_map_progress,
+                            percent.coerceIn(0, 100),
+                            bytes / (1024 * 1024),
+                        )
                     }
                 }
+            },
+            onDone = { ok, routed, message ->
+                runOnUiThread { finishOfflineArea(name, ok, routed, message) }
             },
         )
     }
 
-    private fun finishOfflineArea(
-        name: String,
-        north: Double,
-        south: Double,
-        east: Double,
-        west: Double,
-        zMax: Int,
-        vector: Boolean,
-        raster: Boolean,
-        message: String,
-    ) {
+    private fun finishOfflineArea(name: String, ok: Boolean, routed: Boolean, message: String) {
         offlineBusy = false
+        offlineRouting = false
         offlineAreaProgress.isVisible = false
-        progressLabel.text = message
-        if (vector || raster) {
-            OfflineAreasStore.add(
-                this,
-                OfflineAreasStore.Area(
-                    name = name,
-                    north = north, south = south, east = east, west = west,
-                    zoomMax = zMax, vector = vector, raster = raster,
-                    createdAt = System.currentTimeMillis(),
-                ),
-            )
-            offlineReady = true
+        // On tile success the library already persisted the area; show the localized routing status.
+        // On failure surface the engine's message. (offlineReady mirrors "an area is downloaded".)
+        val msg = when {
+            !ok -> message
+            routed -> getString(R.string.gpx_offline_map_routing_ready, name)
+            else -> getString(R.string.gpx_offline_map_routing_unavailable, name)
         }
+        progressLabel.text = msg
+        if (ok) offlineReady = true
         refreshOfflineControls()
         refreshOfflineList()
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
     }
 
     private fun runSearch() {
@@ -974,7 +946,7 @@ class GpxActivity : AppCompatActivity() {
         )
     }
 
-    private fun runPoi(chip: NominatimSearch.PoiChip) {
+    private fun runPoi(chip: PoiChip) {
         val near = lastKnown()
         if (near == null) {
             Toast.makeText(this, getString(R.string.gpx_need_gps_nearby_poi), Toast.LENGTH_SHORT).show()

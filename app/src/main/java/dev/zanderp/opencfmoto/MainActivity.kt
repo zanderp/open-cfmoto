@@ -29,6 +29,8 @@ import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
+import dev.overtake.maps.search.NominatimSearch
+import dev.zanderp.opencfmoto.connection.CfmotoConnect
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -103,219 +105,34 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Pick the bike profile from the QR up front — it drives the Android Auto resolution/orientation,
-     *  which must be set before AA starts. CLIENT_INFO refines it later during the PXC handshake. */
-    private fun applyProfile(qr: QrData) {
-        AppSettings.applyToHolder(this)
-        BikeProfileHolder.active = BikeProfiles.selectByQr(qr, this)
-        DashMemory.setLastDashTouch(this, BikeProfileHolder.advertisesScreenTouch)
-        val userOverride = VideoPrefs.resolutionOverride(this, BikeProfileHolder.active)
-        // In AUTO mode, if a previous session revealed this dash is a different orientation than the
-        // profile assumes, flip AA to match. Learned from the dash's REQ_CONFIG_CAPTURE (see DashMemory).
-        val autoGeo = if (userOverride == null) DashMemory.specFor(this, qr.ssid, BikeProfileHolder.active) else null
-        BikeProfileHolder.aaVideoOverride = userOverride ?: autoGeo
-        val spec = BikeProfileHolder.aaVideo
-        BikeProfileHolder.aaContentMargins = VideoPrefs.aaMarginsFor(this, spec, qr.ssid)
-        val aspectMode = VideoPrefs.matchAspectMode(this)
-        val aspectNote = BikeProfileHolder.aaContentMargins.let { m ->
-            when {
-                m.any -> " [match-aspect ${aspectMode.name}: margins ${m.marginW}x${m.marginH}]"
-                aspectMode == MatchAspectMode.OFF -> " [match-aspect OFF]"
-                VideoPrefs.detectedPanelSize(this) == null -> " [match-aspect: waiting for panel size]"
-                else -> " [match-aspect ${aspectMode.name}: margins 0]"
-            }
-        }
-        val note = when {
-            userOverride != null -> " (override: ${VideoPrefs.resolution(this).label})"
-            autoGeo != null -> " (auto-orientation from last connect)"
-            else -> ""
-        }
-        val touchNote = when {
-            BikeProfileHolder.forceNonTouch -> " [Disable touchscreen ON — focus/knob AA]"
-            BikeProfileHolder.forceTouch -> " [Force touchscreen ON — touch AA]"
-            else -> ""
-        }
-        val ov = BikeProfileHolder.profileOverride
-        val ovNote = if (ov != ProfileOverride.AUTO) " [profile override: ${ov.shortLabel}]" else ""
-        log("→ bike profile (QR ssid=${qr.ssid} modelId=${qr.modelId}): ${BikeProfileHolder.active.name} " +
-            "→ AA ${spec.width}x${spec.height} @${spec.dpi}dpi$note$touchNote$ovNote$aspectNote")
-    }
+    /** Moved to [CfmotoConnect.applyProfile] so MainActivity + the Android Auto path + the cockpit all
+     *  run the SAME connect code. Thin delegator — behavior unchanged. */
+    private fun applyProfile(qr: QrData) = CfmotoConnect.applyProfile(this, qr)
 
     /**
      * Stop the current dash projection so the next mode can open a clean PXC session.
      * Keeps bike Wi‑Fi (fast re-probe). Optionally preserves an armed Map session / mirror token.
      */
-    private fun tearDownForModeSwitch(clearMap: Boolean, clearMirror: Boolean) {
-        log("→ mode switch: stop previous projection (keep Wi‑Fi)")
-        try { AaVideoBridge.onSteadyVideo = null } catch (_: Exception) {}
-        AaVideoBridge.pipeline = null
-        AaVideoBridge.touchSink = null
-        AaVideoBridge.keySink = null
-        AaVideoBridge.scrollSink = null
-        AaVideoBridge.previewTouchSink = null
-        AaVideoBridge.nightSink = null
-        try { AndroidAutoService.stop(this) } catch (e: Exception) { log("AA stop: $e") }
-        try { BikeLink.prober?.stop() } catch (e: Exception) { log("prober stop: $e") }
-        try {
-            if (::prober.isInitialized && BikeLink.prober !== prober) prober.stop()
-        } catch (_: Exception) {}
-        if (clearMirror) {
-            ProjectionHolder.projection?.let { try { it.stop() } catch (_: Exception) {} }
-            ProjectionHolder.projection = null
-            try { ProjectionService.stop(this) } catch (_: Exception) {}
-        }
-        if (clearMap) {
-            try { GpxSession.clear() } catch (_: Exception) {}
-            MapInputBridge.clear()
-        }
-        BikeLink.beginHandoff(this)
-    }
+    private fun tearDownForModeSwitch(clearMap: Boolean, clearMirror: Boolean) =
+        CfmotoConnect.tearDownForModeSwitch(
+            this, clearMap, clearMirror,
+            localProber = if (::prober.isInitialized) prober else null,
+        )
 
     /** Start the Android Auto → bike projection for [qr]. Shared by the one-tap Connect reconnect
-     *  and a fresh scan, so both paths behave identically. */
-    private fun startAaFlow(qr: QrData) {
-        try {
-            if (!WifiGate.ensureEnabledOrPrompt(this)) return
-            // AA Connect needs Nearby + Bluetooth so HUR (START_WIRELESS_PROJECTION) can run when
-            // WirelessStartupActivity is a no-op (common on AA 16.4+/17.4+). Mirror/Map unchanged.
-            if (!ensureNearbyBtForAaConnect()) return
-            // Map / Mirror / stale PXC must die first — half-switches leave framesSent=0.
-            tearDownForModeSwitch(clearMap = true, clearMirror = true)
-            applyProfile(qr)
-            val bikeName = BikeMemory.lastBikeName(this) ?: qr.ssid
-            ConnectionState.set(Phase.STARTING_AA, bikeName)
-            log("→ starting Android Auto receiver (loopback self-mode). Ensure Android Auto is installed & set up.")
-
-            // Parallel startup: the two slow steps (AA reaching steady video, and the user accepting the
-            // bike Wi-Fi dialog) now overlap. [BikeLink] gates the actual bike probe until BOTH complete,
-            // so the bike is never contacted before AA has frames to serve. These callbacks fire against
-            // process-global state (applicationContext + BikeLink.prober), NOT this activity: launching
-            // Google AA can destroy/recreate MainActivity mid-startup and the hand-off must still finish.
-            BikeLink.beginHandoff(this)
-            AaVideoBridge.onSteadyVideo = {
-                AaVideoBridge.onSteadyVideo = null
-                ConnectionState.set(Phase.AA_VIDEO_LIVE)
-                LogBus.log("→ Android Auto video is live")
-                AndroidAutoService.upgradeForegroundForMicrophone()
-                BikeLink.markAaVideoSteady()
-            }
-            AndroidAutoService.start(this)
-            // Trigger Google AA to project from the FOREGROUND activity (background-activity-launch
-            // safe on Android 12+/15), after giving the service's :5288 server time to bind.
-            // AA 16.4+/17.4+ often need the broadcast fallbacks; retry once if video never arrives
-            // (common when the first WirelessStartupReceiver is ignored).
-            logView.postDelayed({
-                try {
-                    dev.zanderp.opencfmoto.aa.AaSelfMode.trigger(this, log = ::log)
-                } catch (e: Exception) {
-                    log("AA self-mode trigger failed: $e")
-                }
-            }, 900)
-            // Additive retry for AA 16.4+/17.4+ that ignore the first broadcast — skipped if
-            // a session is already live (re-firing START_WIRELESS_PROJECTION kills AAP).
-            logView.postDelayed({
-                if (aaAlreadyLiveOrTerminal()) {
-                    if (AaVideoBridge.aaSessionLive || AaVideoBridge.aaDecoding) {
-                        log("[AA] skip re-trigger — AA already connected/decoding")
-                    }
-                    return@postDelayed
-                }
-                try {
-                    log("[AA] no video yet — re-triggering self-mode (AA 16.4+/17.4+ fallbacks)")
-                    dev.zanderp.opencfmoto.aa.AaSelfMode.trigger(this, log = ::log)
-                } catch (e: Exception) {
-                    log("AA self-mode re-trigger failed: $e")
-                }
-            }, 4_500)
-            // Give up the silent black/QR reconnect loop — surface a clear error after several tries.
-            logView.postDelayed({
-                val p = ConnectionState.phase
-                if (p == Phase.IDLE || p == Phase.STOPPED || p == Phase.ERROR ||
-                    p == Phase.STREAMING || p == Phase.MIRRORING
-                ) return@postDelayed
-                if (AaVideoBridge.aaSessionLive || AaVideoBridge.aaDecoding) return@postDelayed
-                // Still no AA after retries — stop thrashing (bike SoftAP may already be up).
-                log("[AA] Android Auto never attached — stopping silent retry")
-                ConnectionState.set(Phase.ERROR, getString(R.string.conn_detail_aa_not_started))
-            }, 18_000)
-            // Kick off the Wi-Fi join right away, in parallel with AA boot.
-            joinWifi(qr, gateOnAaSteady = true)
-        } catch (e: Exception) {
-            log("Connect failed (app stays open): $e")
-            CrashGuard.persistSession(this)
-            ConnectionState.set(Phase.ERROR, getString(R.string.conn_detail_connect_failed))
-        }
-    }
-
-    private fun aaAlreadyLiveOrTerminal(): Boolean {
-        val p = ConnectionState.phase
-        return AaVideoBridge.aaSessionLive || AaVideoBridge.aaDecoding ||
-            p == Phase.AA_VIDEO_LIVE || p == Phase.PXC_CONNECTING || p == Phase.STREAMING ||
-            p == Phase.IDLE || p == Phase.STOPPED || p == Phase.ERROR ||
-            p == Phase.MIRRORING
-    }
+     *  and a fresh scan, so both paths behave identically. Moved to [CfmotoConnect.startAaConnect]
+     *  (with its `aaAlreadyLiveOrTerminal` guard) so MainActivity's classic AA path and the Compose
+     *  cockpit run the SAME connect code — thin delegator, behavior unchanged. */
+    private fun startAaFlow(qr: QrData) = CfmotoConnect.startAaConnect(this, qr)
 
     /**
-     * Block AA Connect until Nearby (API 31+) is granted and Bluetooth is on — otherwise HUR
-     * never runs and Activity/Receiver alone often leave SoftAP up with no AA on the phone.
+     * Block AA Connect until Nearby (API 31+) is granted and Bluetooth is on — otherwise HUR never
+     * runs and Activity/Receiver alone often leave SoftAP up with no AA on the phone. Moved to
+     * [CfmotoConnect.ensureNearbyBtForAaConnect] (with its `showNearbyBtForAaDialog` helper) so the
+     * classic AA path and the cockpit gate identically — thin delegator; returns false (caller aborts)
+     * when it must prompt for a grant / ask to turn BT on.
      */
-    private fun ensureNearbyBtForAaConnect(): Boolean {
-        if (dev.zanderp.opencfmoto.aa.AaSelfMode.canAttemptHur(this)) return true
-        val needNearby = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) !=
-            PackageManager.PERMISSION_GRANTED
-        if (needNearby) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(
-                    Manifest.permission.BLUETOOTH_CONNECT,
-                    Manifest.permission.BLUETOOTH_SCAN,
-                ),
-                REQ_BT_FOR_AA,
-            )
-            log("→ Nearby/Bluetooth required for AA Connect — waiting for grant + BT on")
-        } else {
-            log("→ Bluetooth is off — turn it on, then tap Connect again")
-        }
-        ConnectionState.set(Phase.ERROR, getString(R.string.conn_detail_need_bluetooth))
-        showNearbyBtForAaDialog(needNearby)
-        return false
-    }
-
-    private fun showNearbyBtForAaDialog(needNearby: Boolean) {
-        if (isFinishing || isDestroyed) return
-        try {
-            val msg = if (needNearby) {
-                getString(R.string.main_aa_need_nearby_message)
-            } else {
-                getString(R.string.main_aa_need_bt_on_message)
-            }
-            com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.main_aa_need_nearby_title)
-                .setMessage(msg)
-                .setPositiveButton(R.string.main_aa_need_nearby_settings) { _, _ ->
-                    try {
-                        if (needNearby) {
-                            startActivity(
-                                Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                                    .setData(Uri.fromParts("package", packageName, null)),
-                            )
-                        } else {
-                            startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS))
-                        }
-                    } catch (_: Exception) {
-                        try {
-                            startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
-                        } catch (_: Exception) {
-                        }
-                    }
-                }
-                .setNegativeButton(android.R.string.cancel, null)
-                .show()
-        } catch (e: Exception) {
-            log("Nearby/BT dialog failed: $e")
-        }
-    }
+    private fun ensureNearbyBtForAaConnect(): Boolean = CfmotoConnect.ensureNearbyBtForAaConnect(this)
 
     /** After a fatal crash, tell the rider logs survived and keep Share Logs useful. */
     private fun maybeShowCrashRecovery() {
@@ -974,299 +791,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Join the bike Wi-Fi and start the PXC prober.
-     *
-     * When [gateOnAaSteady] is true (Android Auto path), the prober start is handed to [BikeLink],
-     * which waits until AA video is also steady — so this Wi-Fi join can run in parallel with AA
-     * boot. When false (mirror path), the prober starts as soon as Wi-Fi is bound.
-     *
-     * Uses applicationContext + the process-global prober (not this activity) so the hand-off
-     * completes even if the activity is destroyed/recreated after it was armed.
+     * Join the bike Wi-Fi and start the PXC prober. Moved to [CfmotoConnect.joinWifi] (with the P2P /
+     * phone-hotspot paths and their helpers) so MainActivity + the Android Auto path + the cockpit run
+     * the SAME connect code. Thin delegator — behavior unchanged.
      */
-    private fun joinWifi(qr: QrData, gateOnAaSteady: Boolean) {
-        if (!WifiGate.ensureEnabledOrPrompt(this)) return
-        ConnectionState.set(Phase.JOINING_WIFI)
-        val transport = AppSettings.transport(this)
-        // Phone-hosts-hotspot (Zontes action=128 / no SoftAP pwd): dash joins the phone.
-        if (qr.supportsPhoneHotspot && qr.pwd.isEmpty()) {
-            joinPhoneHotspot(qr, gateOnAaSteady)
-            return
-        }
-        // AUTO: P2P when the QR is P2P-only (incl. non-DIRECT SSIDs — join by MAC), or DIRECT-*.
-        // SoftAP fallback remains in joinWifiP2p.onFailed for SoftAP-capable units.
-        // Never force P2P when the QR is SoftAP-only (action bit3 clear) — Setup→P2P on those
-        // bikes only burns 25s then falls back (Benelli TRK / bj* SSIDs in the field).
-        val useP2p = when (transport) {
-            WifiTransport.P2P -> qr.supportsP2p || !qr.supportsAp
-            WifiTransport.AP -> false
-            WifiTransport.AUTO ->
-                (qr.supportsP2p && !qr.supportsAp) ||
-                    (qr.ssid.startsWith("DIRECT-", ignoreCase = true) &&
-                        (qr.supportsP2p || !qr.supportsAp))
-        }
-        // Per-bike memory refines AUTO only (an explicit P2P/AP setting is the rider's call): once a
-        // transport has produced a live link for THIS bike, use it and skip the dead path. Some dashes
-        // advertise DIRECT-* + SoftAP, so AUTO tries P2P first and burns the whole timeout on every
-        // connect even when P2P never forms a group on this phone, while SoftAP connects in seconds.
-        val remembered = if (transport == WifiTransport.AUTO) BikeMemory.winningTransport(this, qr.ssid) else null
-        val effUseP2p = when {
-            remembered == "AP" && qr.supportsAp -> false
-            remembered == "P2P" && qr.supportsP2p -> true
-            else -> useP2p
-        }
-        if (remembered != null && effUseP2p != useP2p) {
-            log("→ transport memory: '$remembered' connected before for '${qr.ssid}' — using it, skipping the dead path")
-        }
-        if (transport == WifiTransport.P2P && !useP2p) {
-            log(
-                "→ Setup Wi‑Fi transport is P2P but QR is SoftAP-only " +
-                    "(action=${qr.action} ssid=${qr.ssid}) — joining SoftAP instead",
-            )
-        }
-        if (effUseP2p) {
-            val isDirect = qr.ssid.startsWith("DIRECT-", ignoreCase = true)
-            // P2P-only QRs with a SoftAP-style SSID but no MAC burn ~40s on MAC ERROR
-            // (Voge-5G / ZT5G / etc.). Prefer SoftAP immediately when we have a password.
-            if (!isDirect && qr.mac.isNullOrBlank() && qr.pwd.isNotEmpty()) {
-                log(
-                    "→ QR says P2P-only; SSID '${qr.ssid}' has no MAC — " +
-                        "joining SoftAP first (skip Wi‑Fi Direct by MAC)",
-                )
-            } else {
-                if (!isDirect) {
-                    log(
-                        "→ QR says P2P-only; SSID '${qr.ssid}' is not DIRECT-* — " +
-                            "trying Wi‑Fi Direct by MAC (then SoftAP fallback)",
-                    )
-                }
-                joinWifiP2p(qr, gateOnAaSteady)
-                return
-            }
-        }
-        BikeWifi.reuseOrJoin(
-            context = applicationContext,
-            ssid = qr.ssid,
-            psk = qr.pwd,
-            onAvailable = { network ->
-                WifiGate.cancelNotification(applicationContext)
-                // SoftAP got Wi-Fi up for this bike → remember it so AUTO skips P2P next time.
-                BikeMemory.setWinningTransport(applicationContext, qr.ssid, "AP")
-                if (gateOnAaSteady) {
-                    LogBus.log("→ bike Wi-Fi bound (waiting for AA video to go steady)")
-                    BikeLink.markWifiReady(network)
-                } else {
-                    // Map / Mirror: no AA gating — rebuild PXC immediately on the bound network.
-                    ConnectionState.set(Phase.PXC_CONNECTING)
-                    LogBus.log("→ Wi-Fi bound; starting EasyConn PXC flow …")
-                    try {
-                        (BikeLink.prober ?: prober).start(network ?: BikeWifi.currentNetwork)
-                    } catch (e: Exception) {
-                        LogBus.log("prober start failed: $e")
-                    }
-                }
-            },
-            onLost = { LogBus.log("bike network lost") },
-            log = LogBus::log,
-        )
-    }
-
-    /**
-     * Dash is the Wi‑Fi client (Carbit `action=128`). Android cannot create a hotspot with the
-     * dash SSID/password for us — show assist dialog, open tether settings, then poll for EasyConn.
-     */
-    private fun joinPhoneHotspot(qr: QrData, gateOnAaSteady: Boolean) {
-        LogBus.log(
-            "→ phone-hotspot mode (action=${qr.action} mac=${qr.mac}) — " +
-                "assist dialog (app cannot create AP; set dash SSID/pwd in system hotspot)",
-        )
-        ConnectionState.set(Phase.JOINING_WIFI, getString(R.string.main_phone_hotspot_status))
-        PhoneHotspotAssist.showSetupDialog(
-            activity = this,
-            qr = qr,
-            onContinue = { startPhoneHotspotScan(gateOnAaSteady) },
-            onCancel = {
-                ConnectionState.set(Phase.ERROR, getString(R.string.main_phone_hotspot_cancelled))
-            },
-        )
-    }
-
-    /** Poll for tether iface (~45s) then NSD / subnet EasyConn scan. */
-    private fun startPhoneHotspotScan(gateOnAaSteady: Boolean) {
-        val creds = PhoneHotspotAssist.loadCreds(this)
-        if (creds.ssid.isNotEmpty()) {
-            Toast.makeText(
-                this,
-                getString(R.string.main_phone_hotspot_waiting_named, creds.ssid),
-                Toast.LENGTH_LONG,
-            ).show()
-        } else {
-            Toast.makeText(this, R.string.main_phone_hotspot_hint, Toast.LENGTH_LONG).show()
-        }
-        ConnectionState.set(Phase.JOINING_WIFI, getString(R.string.main_phone_hotspot_status))
-        Thread({
-            try {
-                var subnets = emptyList<PhoneHotspotScan.Subnet>()
-                val pollRounds = 30 // ~45s at 1.5s
-                for (i in 0 until pollRounds) {
-                    if (ConnectionState.phase == Phase.STOPPED) return@Thread
-                    subnets = PhoneHotspotScan.tetheringSubnets()
-                    if (subnets.isNotEmpty()) break
-                    if (i == 0 || i % 5 == 0) {
-                        LogBus.log(
-                            "[HOTSPOT] waiting for tether interface… " +
-                                "(${i + 1}/$pollRounds) set Android hotspot" +
-                                creds.ssid.takeIf { it.isNotEmpty() }?.let { " SSID='$it'" }.orEmpty(),
-                        )
-                    }
-                    try {
-                        Thread.sleep(1_500)
-                    } catch (_: InterruptedException) {
-                        return@Thread
-                    }
-                }
-                if (subnets.isEmpty()) {
-                    LogBus.log(
-                        "[HOTSPOT] no tether interface after wait — open hotspot settings " +
-                            "and set the dash SSID/password, then Connect again",
-                    )
-                    runOnUiThread {
-                        ConnectionState.set(Phase.ERROR, getString(R.string.main_phone_hotspot_no_iface))
-                        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-                            .setTitle(R.string.main_phone_hotspot_dialog_title)
-                            .setMessage(R.string.main_phone_hotspot_no_iface)
-                            .setPositiveButton(R.string.main_phone_hotspot_open_settings) { _, _ ->
-                                PhoneHotspotAssist.openHotspotSettings(this)
-                            }
-                            .setNegativeButton(android.R.string.ok, null)
-                            .show()
-                    }
-                    return@Thread
-                }
-                val subnet = subnets.first()
-                LogBus.log(
-                    "[HOTSPOT] using ${subnet.interfaceName} " +
-                        "${subnet.localAddress.hostAddress}/${subnet.prefixLength}",
-                )
-                // Prefer NSD first (works when multicast reaches the tether iface).
-                val nsd = EasyConnDiscovery.discoverNsd(applicationContext, LogBus::log)
-                val peer = nsd?.host
-                    ?: PhoneHotspotScan.findEasyConnPeer(subnet, LogBus::log)
-                if (peer == null) {
-                    runOnUiThread {
-                        ConnectionState.set(Phase.ERROR, getString(R.string.main_phone_hotspot_no_peer))
-                        Toast.makeText(
-                            this,
-                            getString(R.string.main_phone_hotspot_no_peer),
-                            Toast.LENGTH_LONG,
-                        ).show()
-                    }
-                    return@Thread
-                }
-                val bindIp = subnet.localAddress
-                runOnUiThread {
-                    WifiGate.cancelNotification(applicationContext)
-                    if (gateOnAaSteady) {
-                        LogBus.log(
-                            "→ hotspot peer ${peer.hostAddress} (waiting for AA); " +
-                                "bind=${bindIp.hostAddress}",
-                        )
-                        BikeLink.markP2pReady(bindIp, peer)
-                    } else {
-                        ConnectionState.set(Phase.PXC_CONNECTING)
-                        LogBus.log("→ hotspot peer ${peer.hostAddress}; starting EasyConn PXC …")
-                        try {
-                            (BikeLink.prober ?: prober).start(
-                                network = null,
-                                gatewayOverride = peer,
-                                bindIpOverride = bindIp,
-                            )
-                        } catch (e: Exception) {
-                            LogBus.log("prober start failed: $e")
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                LogBus.log("[HOTSPOT] failed: $e")
-                runOnUiThread {
-                    ConnectionState.set(Phase.ERROR, "hotspot scan failed")
-                }
-            }
-        }, "phone-hotspot-scan").apply { isDaemon = true }.start()
-    }
-
-    /** Wi‑Fi Direct Group Owner path (CL‑C450 / some DIRECT- SSIDs / Zontes MAC join). */
-    private fun joinWifiP2p(qr: QrData, gateOnAaSteady: Boolean) {
-        if (!WifiGate.ensureEnabledOrPrompt(this)) return
-        LogBus.log("→ joining via Wi‑Fi Direct (P2P)")
-        // How long to wait for a P2P group before failing over to SoftAP:
-        //  - "P2P" remembered  → proven P2P device on this phone; give it the full window.
-        //  - SoftAP advertised → a working fallback exists, so bail (12s) when P2P is hopeless
-        //    (some phones ERROR on every join attempt in <1s but the group never forms).
-        //  - otherwise (P2P-only) → full window; there is nothing to fall back to.
-        val known = BikeMemory.winningTransport(this, qr.ssid)
-        val p2pTimeout = when {
-            known == "P2P" -> BikeWifiP2p.CONNECT_TIMEOUT_MS
-            qr.supportsAp && qr.pwd.isNotEmpty() -> 12_000L
-            else -> BikeWifiP2p.CONNECT_TIMEOUT_MS
-        }
-        BikeWifiP2p.connect(
-            context = applicationContext,
-            qr = qr,
-            timeoutMs = p2pTimeout,
-            onConnected = { bindIp, gatewayIp ->
-                WifiGate.cancelNotification(applicationContext)
-                // P2P actually formed a group for this bike → remember it (some DIRECT-* bikes need P2P).
-                BikeMemory.setWinningTransport(applicationContext, qr.ssid, "P2P")
-                if (gateOnAaSteady) {
-                    LogBus.log("→ P2P bound (waiting for AA video); bike=${gatewayIp.hostAddress}")
-                    BikeLink.markP2pReady(bindIp, gatewayIp)
-                } else {
-                    ConnectionState.set(Phase.PXC_CONNECTING)
-                    LogBus.log("→ P2P bound; starting EasyConn PXC flow …")
-                    try {
-                        (BikeLink.prober ?: prober).start(
-                            network = null,
-                            gatewayOverride = gatewayIp,
-                            bindIpOverride = bindIp,
-                        )
-                    } catch (e: Exception) {
-                        LogBus.log("prober start failed: $e")
-                    }
-                }
-            },
-            onFailed = { reason ->
-                if (qr.pwd.isEmpty() || qr.ssid.startsWith("PHONE-HOTSPOT", ignoreCase = true)) {
-                    LogBus.log("P2P join failed: $reason — no SoftAP credentials to fall back to")
-                    ConnectionState.set(Phase.ERROR, "Wi‑Fi Direct failed")
-                    return@connect
-                }
-                LogBus.log("P2P join failed: $reason — falling back to AP join")
-                if (!WifiGate.ensureEnabledOrNotify(applicationContext)) return@connect
-                BikeWifi.join(
-                    context = applicationContext,
-                    ssid = qr.ssid,
-                    psk = qr.pwd,
-                    onAvailable = { network ->
-                        WifiGate.cancelNotification(applicationContext)
-                        // SoftAP fallback connected → remember AP so AUTO goes straight here next time.
-                        BikeMemory.setWinningTransport(applicationContext, qr.ssid, "AP")
-                        if (gateOnAaSteady) BikeLink.markWifiReady(network)
-                        else {
-                            ConnectionState.set(Phase.PXC_CONNECTING)
-                            try {
-                                (BikeLink.prober ?: prober).start(network)
-                            } catch (e: Exception) {
-                                LogBus.log("prober start failed: $e")
-                            }
-                        }
-                    },
-                    onLost = { LogBus.log("bike network lost") },
-                    log = LogBus::log,
-                )
-            },
-            log = LogBus::log,
-        )
-    }
+    private fun joinWifi(qr: QrData, gateOnAaSteady: Boolean) =
+        // Pass the Activity so the classic path keeps its modal Wi‑Fi-off prompt (the new Context-based
+        // overload without an Activity falls back to a notification for the background service).
+        CfmotoConnect.joinWifi(this, qr, gateOnAaSteady, activity = this)
 
     private fun runBleWakeUpThenProber() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
@@ -1713,7 +1245,6 @@ class MainActivity : AppCompatActivity() {
         const val EXTRA_START_GPX = "start_gpx"
         /** When set with [EXTRA_START_GPX], join the bike even if not already live. */
         const val EXTRA_GPX_TO_BIKE = "gpx_to_bike"
-        private const val REQ_BT_FOR_AA = 4
         /** Latched once an auto-connect attempt actually starts, so it fires only once per process. */
         @Volatile private var autoConnectStarted = false
         /** So the "idle/not-in-range" reason is logged once, not on every onResume retry. */

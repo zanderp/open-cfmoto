@@ -35,6 +35,22 @@ object AaSelfMode {
     /** Bumps when a new trigger starts so stale escalate callbacks exit. */
     private val triggerGeneration = AtomicInteger(0)
 
+    /**
+     * Tear down self-mode: bump the generation so pending escalate pokes exit, and KILL the Google AA
+     * gearhead we launched. It does NOT die when we stop our AAP receiver — it lingers (holding the
+     * projection / retrying) until killed. Needs KILL_BACKGROUND_PROCESSES (declared in the manifest).
+     */
+    fun stop(context: Context, log: (String) -> Unit = {}) {
+        triggerGeneration.incrementAndGet() // stale escalate callbacks exit early
+        try {
+            val am = context.applicationContext.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            am.killBackgroundProcesses(GEARHEAD_PKG)
+            log("[AA] self-mode stopped — gearhead background killed")
+        } catch (e: Exception) {
+            log("[AA] gearhead kill failed: $e")
+        }
+    }
+
     fun trigger(context: Context, port: Int = AaReceiver.PORT, log: (String) -> Unit) {
         // Additive safety: never poke gearhead again if AAP is already up.
         if (sessionLive()) {

@@ -22,6 +22,8 @@ class AapTransport(
     val ssl: AapSsl = externalSsl ?: AapSslContext(SingleKeyKeyManager(context))
 
     internal val aapVideo: AapVideo
+    /** Plays AA's projected audio (nav voice / media / system) on the phone instead of discarding it. */
+    internal val audioOutput = AaAudioOutput(context)
     private var sendThread: HandlerThread? = null
     private var pollThread: HandlerThread? = null
     private val sessionIds = SparseIntArray(4)
@@ -71,6 +73,7 @@ class AapTransport(
     init {
         aapVideo = AapVideo(videoDecoder) { triggerFocusCycleRecovery() }
         videoDecoder.onDecoderError = { triggerFocusCycleRecovery() }
+        audioOutput.start()
     }
 
     internal fun startSensor(type: Int) { startedSensors.add(type) }
@@ -115,6 +118,7 @@ class AapTransport(
         pollThread?.quit()
         sendThread?.quit()
         aapVideo.release()
+        audioOutput.stop()
         videoDecoder.onDecoderError = null
         try {
             if (Thread.currentThread() != pollThread) pollThread?.join(1000)

@@ -3,7 +3,8 @@ package dev.zanderp.opencfmoto.aa
 
 internal class AapMessageHandlerType(
     private val transport: AapTransport,
-    private val aapVideo: AapVideo
+    private val aapVideo: AapVideo,
+    private val audioOutput: AaAudioOutput,
 ) : AapMessageHandler {
 
     private val aapControl: AapControl = AapControlGateway(transport)
@@ -20,10 +21,15 @@ internal class AapMessageHandlerType(
             }
         }
 
-        // 2. Audio: we advertise an audio sink to keep AA happy, but nav audio plays via the phone's
-        //    own output → paired BT helmet (the motorcycle audio path), NOT through us — AA keeps
-        //    audio local in self-mode. ACK data buffers so AA's unacked window never stalls, discard PCM.
+        // 2. Audio: play AA's projected PCM on the phone (nav voice / media / system) instead of
+        //    discarding it — modern AA sends it to the "car" (us), not to a local speaker, so the
+        //    phone was silent. Still ACK so AA's unacked window never stalls. The PCM sits after the
+        //    2-byte msg-type, plus an 8-byte timestamp when msgType==0 (same header as video).
         if (message.isAudio && (msgType == 0 || msgType == 1)) {
+            val payloadOffset = if (msgType == 0) 10 else 2
+            if (message.size > payloadOffset) {
+                audioOutput.submit(message.channel, message.data, payloadOffset, message.size - payloadOffset)
+            }
             transport.sendMediaAck(message.channel)
             return
         }

@@ -1,6 +1,9 @@
 package dev.zanderp.opencfmoto
 
 import androidx.annotation.StringRes
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Coarse, process-global view of what the app is currently doing, so the UI can show a single
@@ -36,9 +39,13 @@ object ConnectionState {
     var detail: String = ""
         private set
 
-    /** Observer (MainActivity) — receives (phase, detail) on every transition, on any thread. */
+    /** Observer (legacy MainActivity) — receives (phase, detail) on every transition, on any thread. */
     @Volatile
     var listener: ((Phase, String) -> Unit)? = null
+
+    /** Reactive stream for the Compose shell / ViewModels — mirrors [listener] without replacing it. */
+    private val _flow = MutableStateFlow(ConnSnapshot(Phase.IDLE, ""))
+    val flow: StateFlow<ConnSnapshot> = _flow.asStateFlow()
 
     /**
      * Move to [newPhase]. Pass [newDetail] to change the trailing detail, or leave it null to keep
@@ -49,6 +56,7 @@ object ConnectionState {
         phase = newPhase
         if (newDetail != null) detail = newDetail
         val d = detail
+        _flow.value = ConnSnapshot(newPhase, d)
         val text = if (d.isBlank()) newPhase.logLabel else "${newPhase.logLabel} — $d"
         LogBus.log("[state] $text")
         try {
@@ -57,3 +65,6 @@ object ConnectionState {
         }
     }
 }
+
+/** Immutable connection snapshot for reactive (Compose) observers. */
+data class ConnSnapshot(val phase: Phase, val detail: String)
