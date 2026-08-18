@@ -144,6 +144,11 @@ fun CockpitScreen(nav: NavController) {
     // cockpitMode = show the widget dash (music strip); false = just the map, full-bleed.
     var cockpitMode by rememberSaveable { mutableStateOf(true) }
 
+    // Mirror the Mapa|Panel choice to the projected bike dash so Panel shows the now-playing strip
+    // there too (not just on the phone). DashRemote remembers it for a dash that binds later; when a
+    // dash is already projecting it flips live with no PXC reconnect.
+    LaunchedEffect(cockpitMode) { DashRemote.applyPanelMode(cockpitMode) }
+
     // The full-bleed map now renders the SELECTED engine (SettingsStore.dashRenderer) through the
     // Overtake library's MapRenderer — the SAME renderer the dash uses, so the cockpit matches the dash
     // (WYSIWYG). The old embed hardcoded raw osmdroid Mapnik and ignored the choice, so MapLibre

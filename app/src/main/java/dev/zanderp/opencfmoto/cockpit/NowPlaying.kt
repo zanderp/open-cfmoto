@@ -50,6 +50,14 @@ object NowPlaying {
     @Volatile private var controllerCallback: MediaController.Callback? = null
     @Volatile private var hasAccess: Boolean = false
 
+    /**
+     * How many surfaces are observing (main-thread only). Both the cockpit's `MusicPanel` and the
+     * projected dash strip call [start]/[stop] in pairs; refcounting keeps the single platform
+     * registration alive until the LAST one leaves, so closing the phone panel doesn't blank the
+     * bike-dash strip (which must keep reading the session while the rider is pocketed).
+     */
+    private var refCount = 0
+
     /** True when this app is an enabled notification listener (the grant that unlocks session reads). */
     fun hasAccess(ctx: Context): Boolean {
         // Settings.Secure.ENABLED_NOTIFICATION_LISTENERS is @hide; the backing key is stable.
@@ -63,6 +71,8 @@ object NowPlaying {
      * first, so a re-entrant start never double-registers.
      */
     fun start(ctx: Context) {
+        refCount++
+        if (refCount > 1) return // already observing for another surface — keep the live registration
         val app = ctx.applicationContext
         appContext = app
         teardown() // defensive: drop any stale registrations before wiring fresh ones
@@ -92,6 +102,8 @@ object NowPlaying {
 
     /** Stop observing and unregister everything. Keeps [hasAccess] so the UI can still reflect it. */
     fun stop(ctx: Context) {
+        if (refCount > 0) refCount--
+        if (refCount > 0) return // another surface still needs the registration
         teardown()
         _state.value = NowPlayingState(hasAccess = hasAccess, hasSession = false)
     }
