@@ -35,24 +35,14 @@ Device Information (0x180A):
 - **Subscribed to the NOTIFY char for two full 60 s windows while revving the engine and toggling
   lights: zero notifications.** The dash pushes nothing on its own here.
 
-## 2. The official app's protocol schemas (from the APK, unencrypted)
-
-`CFMOTO RIDE` is ijiami-packed (DEX encrypted), but the protobuf schemas sit in the clear at the APK
-root. `Meter.proto` (the T-Box BLE protocol) is **control-only**: auth, `Display`, `FindCar`
-(lights/horn), `KL15`, `Lock`, `Preference`, `Navi`, charging; `PatchObtainInfo` only returns
-`CHARGER_INFO`. No fuel / RPM / speed. `bluetooth.proto` *does* carry telemetry (`speed`, `mileage`,
-`TransGearPos`, temps, GPS) but with **electric-bike + external-receiver** fields and no fuel field —
-and the app gates all of it behind the T-Box (`"not equipped with T-Box, this function cannot be
-used"`; `virtual_vehicle.json` carries `simRemainingDays`, i.e. a subscription).
-
-## 3. PXC / projection plane — screen and touch only
+## 2. PXC / projection plane — screen and touch only
 
 With unknown control frames hex-dumped during a live session, the only non-standard frame
 (`0x10470` → ack `0x10471`) was the **voice-command grammar** (Chinese regex for music control,
 `"cnt":9`). `RVINFO (0x60004110)` is a screen event (`sendRvInfo(ECPAppScreenEvent*)` in
 `librvserver.so`), not vehicle info. The AA SENSOR channel only ever starts `DRIVING_STATUS` + `NIGHT`.
 
-## 4. The dash's own network — swept wide, closed
+## 3. The dash's own network — swept wide, closed
 
 During projection the dash is `192.168.49.1`. Read-only sweep from the phone:
 
@@ -61,7 +51,7 @@ During projection the dash is `192.168.49.1`. Read-only sweep from the phone:
 - **Passive listen (25 s) for any broadcast/multicast the dash emits: nothing** — only the phone's
   own mDNS. The dash advertises **no** mDNS services.
 
-## 5. The OTA SOCKS — the dash asks the phone to be its uplink, but never dials out
+## 4. The OTA SOCKS — the dash asks the phone to be its uplink, but never dials out
 
 During projection the dash sends `SOCK_SERVER_INFO (0x104a0)`:
 
