@@ -572,18 +572,27 @@ class EasyConnProber(
                     )
                 }
                 log("[PROBE] bindSocket FAILED (${e.javaClass.simpleName}: ${e.message}) — " +
-                    "falling back to process-bound socket")
+                    "falling back to a socket source-bound to the bike interface")
             }
-            // Process may already be bound to the bike network — unbound Socket uses that default.
-            try {
-                log("[PROBE] socket via process bind (no Network.bindSocket)")
-                return Socket()
-            } catch (e: Exception) {
-                log("[PROBE] process-bound Socket() failed (${e.javaClass.simpleName}: ${e.message})")
-            }
+            // Network.bindSocket refused (Wi‑Fi Direct groups expose no bindable Network; a VPN
+            // kill-switch was already ruled out above). Do NOT fall back to an UNBOUND Socket(): with
+            // home Wi‑Fi still up it holds the phone's DEFAULT route, so the probe to the on-link
+            // 192.168.49.x bike gateway egresses the WRONG interface and burns its full 3s connect
+            // timeout before failing over (logcat: from /192.168.1.x → /192.168.49.1 after 3000ms).
+            // Fall through to the source-bound socket below so traffic routes onto the bike interface
+            // by its source IP (the bike's /24 is on-link there) — the same path the no-Network
+            // branch uses, restoring fast first-connect over Wi‑Fi Direct with home Wi‑Fi present.
         }
+        // Source-bind to our bike-interface IP so the probe egresses that interface even when there
+        // is no bindable Network and home Wi‑Fi holds the default route (P2P + bind-refused paths).
         val s = Socket()
-        try { s.bind(InetSocketAddress(myIp, 0)) } catch (_: Exception) {}
+        try {
+            s.bind(InetSocketAddress(myIp, 0))
+            log("[PROBE] socket source-bound to ${myIp.hostAddress} (routes onto the bike interface)")
+        } catch (e: Exception) {
+            log("[PROBE] source-bind to ${myIp.hostAddress} failed " +
+                "(${e.javaClass.simpleName}: ${e.message}) — unbound socket")
+        }
         return s
     }
 
