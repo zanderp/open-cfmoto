@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Report missing locale string/plural keys as GitHub notices without failing."""
+"""Compare each values-*/strings.xml against English values/strings.xml.
+
+Android falls back to English for missing keys, so English is the source of
+truth. Extra keys in a locale are orphans, not missing English strings.
+"""
 
 from __future__ import annotations
 
@@ -20,18 +24,28 @@ class LocaleKeys:
     plurals: set[str] = field(default_factory=set)
 
 
-def discover_locales(res_dir: Path) -> list[LocaleKeys]:
-    locales: list[LocaleKeys] = []
-    base = res_dir / "values" / "strings.xml"
-    if base.is_file():
-        locales.append(LocaleKeys("en", base))
+@dataclass
+class LocaleDiff:
+    missing_strings: list[str]
+    missing_plurals: list[str]
+    orphan_strings: list[str]
+    orphan_plurals: list[str]
 
+
+def discover_english(res_dir: Path) -> LocaleKeys:
+    path = res_dir / "values" / "strings.xml"
+    if not path.is_file():
+        raise SystemExit(f"English source of truth not found: {path}")
+    return LocaleKeys("en", path)
+
+
+def discover_translations(res_dir: Path) -> list[LocaleKeys]:
+    locales: list[LocaleKeys] = []
     for path in sorted(res_dir.glob("values-*/strings.xml")):
         tag = path.parent.name.removeprefix("values-")
         locales.append(LocaleKeys(tag, path))
-
     if not locales:
-        raise SystemExit(f"No strings.xml files found under {res_dir}")
+        raise SystemExit(f"No values-*/strings.xml files found under {res_dir}")
     return locales
 
 
@@ -49,6 +63,15 @@ def load_keys(locale: LocaleKeys) -> None:
             locale.strings.add(name)
         elif element.tag == "plurals":
             locale.plurals.add(name)
+
+
+def diff_against_english(english: LocaleKeys, locale: LocaleKeys) -> LocaleDiff:
+    return LocaleDiff(
+        missing_strings=sorted(english.strings - locale.strings),
+        missing_plurals=sorted(english.plurals - locale.plurals),
+        orphan_strings=sorted(locale.strings - english.strings),
+        orphan_plurals=sorted(locale.plurals - english.plurals),
+    )
 
 
 def write_github_summary(lines: list[str]) -> None:
@@ -70,83 +93,118 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    locales = discover_locales(args.res_dir)
+    english = discover_english(args.res_dir)
+    load_keys(english)
+
+    locales = discover_translations(args.res_dir)
     for locale in locales:
         load_keys(locale)
 
-    all_strings = set().union(*(loc.strings for loc in locales))
-    all_plurals = set().union(*(loc.plurals for loc in locales))
-
-    missing_by_locale: dict[str, dict[str, list[str]]] = {}
+    diffs: dict[str, LocaleDiff] = {}
     for locale in locales:
-        missing_strings = sorted(all_strings - locale.strings)
-        missing_plurals = sorted(all_plurals - locale.plurals)
-        if missing_strings or missing_plurals:
-            missing_by_locale[locale.tag] = {
-                "strings": missing_strings,
-                "plurals": missing_plurals,
-            }
+        diff = diff_against_english(english, locale)
+        if (
+            diff.missing_strings
+            or diff.missing_plurals
+            or diff.orphan_strings
+            or diff.orphan_plurals
+        ):
+            diffs[locale.tag] = diff
 
     summary: list[str] = [
         "## Translation key parity",
         "",
-        f"Checked **{len(locales)}** locale file(s); "
-        f"**{len(all_strings)}** string keys and **{len(all_plurals)}** plural keys required in each.",
+        "Compared each `values-*/strings.xml` against English `values/strings.xml` "
+        f"({len(english.strings)} strings, {len(english.plurals)} plurals).",
         "",
-        "| Locale | File | Missing strings | Missing plurals |",
-        "|--------|------|-----------------|-----------------|",
+        "| Locale | File | Missing strings | Missing plurals | Orphan strings | Orphan plurals |",
+        "|--------|------|-----------------|-----------------|----------------|----------------|",
     ]
 
     for locale in locales:
-        miss = missing_by_locale.get(locale.tag, {"strings": [], "plurals": []})
+        diff = diffs.get(
+            locale.tag,
+            LocaleDiff([], [], [], []),
+        )
         summary.append(
-            f"| `{locale.tag}` | `{locale.path}` | {len(miss['strings'])} | {len(miss['plurals'])} |"
+            f"| `{locale.tag}` | `{locale.path}` | "
+            f"{len(diff.missing_strings)} | {len(diff.missing_plurals)} | "
+            f"{len(diff.orphan_strings)} | {len(diff.orphan_plurals)} |"
         )
 
-    if missing_by_locale:
-        summary.extend(["", "### Missing keys", ""])
+    if diffs:
+        summary.extend(["", "### Details", ""])
         for locale in locales:
-            miss = missing_by_locale.get(locale.tag)
-            if not miss:
+            diff = diffs.get(locale.tag)
+            if not diff:
                 continue
             summary.append(f"#### `{locale.tag}` (`{locale.path}`)")
-            if miss["strings"]:
+            if diff.missing_strings:
                 summary.append("")
-                summary.append(f"**Strings ({len(miss['strings'])}):**")
-                summary.extend(f"- `{name}`" for name in miss["strings"])
-            if miss["plurals"]:
+                summary.append(f"**Missing strings ({len(diff.missing_strings)}):**")
+                summary.extend(f"- `{name}`" for name in diff.missing_strings)
+            if diff.missing_plurals:
                 summary.append("")
-                summary.append(f"**Plurals ({len(miss['plurals'])}):**")
-                summary.extend(f"- `{name}`" for name in miss["plurals"])
+                summary.append(f"**Missing plurals ({len(diff.missing_plurals)}):**")
+                summary.extend(f"- `{name}`" for name in diff.missing_plurals)
+            if diff.orphan_strings:
+                summary.append("")
+                summary.append(
+                    f"**Orphan strings ({len(diff.orphan_strings)}) — not in English:**"
+                )
+                summary.extend(f"- `{name}`" for name in diff.orphan_strings)
+            if diff.orphan_plurals:
+                summary.append("")
+                summary.append(
+                    f"**Orphan plurals ({len(diff.orphan_plurals)}) — not in English:**"
+                )
+                summary.extend(f"- `{name}`" for name in diff.orphan_plurals)
             summary.append("")
 
     write_github_summary(summary)
 
-    if not missing_by_locale:
+    if not diffs:
         print(
-            f"OK: all {len(locales)} locale files contain "
-            f"{len(all_strings)} strings and {len(all_plurals)} plurals."
+            f"OK: all {len(locales)} locale files match English "
+            f"({len(english.strings)} strings, {len(english.plurals)} plurals)."
         )
         return 0
 
     print("Translation key parity check completed with notices.\n", file=sys.stderr)
+    missing_locales = 0
+    missing_total = 0
+    orphan_total = 0
     for locale in locales:
-        miss = missing_by_locale.get(locale.tag)
-        if not miss:
+        diff = diffs.get(locale.tag)
+        if not diff:
             continue
         rel = locale.path
         print(f"[{locale.tag}] {rel}", file=sys.stderr)
-        for name in miss["strings"]:
+        for name in diff.missing_strings:
             print(f"  ::notice file={rel}::missing string `{name}`", file=sys.stderr)
-        for name in miss["plurals"]:
+        for name in diff.missing_plurals:
             print(f"  ::notice file={rel}::missing plural `{name}`", file=sys.stderr)
+        for name in diff.orphan_strings:
+            print(
+                f"  ::notice file={rel}::orphan string `{name}` (not in English)",
+                file=sys.stderr,
+            )
+        for name in diff.orphan_plurals:
+            print(
+                f"  ::notice file={rel}::orphan plural `{name}` (not in English)",
+                file=sys.stderr,
+            )
         print(file=sys.stderr)
+        missing = len(diff.missing_strings) + len(diff.missing_plurals)
+        orphans = len(diff.orphan_strings) + len(diff.orphan_plurals)
+        if missing:
+            missing_locales += 1
+        missing_total += missing
+        orphan_total += orphans
 
-    total = sum(
-        len(m["strings"]) + len(m["plurals"]) for m in missing_by_locale.values()
-    )
     print(
-        f"{len(missing_by_locale)} locale(s) incomplete; {total} missing key entries overall.",
+        f"{missing_locales} locale(s) missing keys vs English; "
+        f"{missing_total} missing, {orphan_total} orphan key(s).",
         file=sys.stderr,
     )
     return 0
