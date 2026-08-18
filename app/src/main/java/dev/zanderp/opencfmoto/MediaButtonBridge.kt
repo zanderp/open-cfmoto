@@ -466,6 +466,15 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
      * never sends ▲/▼ must not hold STREAM_MUSIC hostage.
      */
     private fun maybePinVolume(reason: String) {
+        // ▲/▼ set to Volume mode: never pin — the rocker must move the phone volume normally, and with
+        // nothing pinned the volume observer fires no navigation (it early-returns on pinnedVolume<0).
+        if (!HandlebarVolumeMode.isNavigate(context)) {
+            if (pinnedVolume >= 0) {
+                log("[BTN] skip pin ($reason) — ▲/▼ set to Volume; unpinning so volume works normally")
+                unpinVolume()
+            }
+            return
+        }
         if (!ButtonPresencePrefs.shouldPinVolume(context)) {
             if (pinnedVolume >= 0) {
                 log("[BTN] skip pin ($reason) — volume rocker ABSENT; unpinning")

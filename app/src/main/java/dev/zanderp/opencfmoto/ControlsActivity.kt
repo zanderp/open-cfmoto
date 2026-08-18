@@ -131,6 +131,14 @@ class ControlsActivity : AppCompatActivity() {
             if (checked) ensureMicPermission()
         }
 
+        // ▲/▼ = navigate the AA menu (default) vs. plain volume. Live-applied via the pref setter.
+        val swVol = findViewById<MaterialSwitch>(R.id.switch_handlebar_volume_nav)
+        swVol.isChecked = HandlebarVolumeMode.isNavigate(this)
+        swVol.setOnCheckedChangeListener { _, checked ->
+            HandlebarVolumeMode.set(this, checked)
+            LogBus.log("→ handlebar ▲/▼ ${if (checked) "navigate the AA menu" else "control volume"}")
+        }
+
         findViewById<MaterialButton>(R.id.btn_customize).setOnClickListener {
             startActivity(Intent(this, ButtonMappingActivity::class.java))
         }
