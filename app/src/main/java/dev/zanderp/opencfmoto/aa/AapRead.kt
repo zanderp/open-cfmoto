@@ -27,7 +27,7 @@ internal interface AapRead {
             transport: AapTransport,
             aapVideo: AapVideo
         ): AapRead {
-            val handler = AapMessageHandlerType(transport, aapVideo)
+            val handler = AapMessageHandlerType(transport, aapVideo, transport.audioOutput)
             return if (connection.isSingleMessage)
                 AapReadSingleMessage(connection, transport.ssl, handler)
             else
