@@ -301,6 +301,12 @@ class AndroidAutoService : Service() {
         try {
             if (on) {
                 reacquireLocks() // CPU + Wi‑Fi locks — screen-off must not stall the map pipeline
+                // Own-map projection routes the handlebar (AVRCP) through [MediaButtonBridge] → the map
+                // sinks. setGpxScreenWake() short-circuits straight here when the FGS is ALREADY up
+                // (e.g. a lingering post-onTaskRemoved service, or an AA→Map switch), skipping the
+                // onStartCommand(ACTION_GPX_WAKE) path that would otherwise start the bridge — so start
+                // it here too. Idempotent (no-op once running) and gated on BT, so AA is unaffected.
+                ensureMediaButtons()
                 if (screenWakeLock?.isHeld == true) return
                 val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
                 @Suppress("DEPRECATION")

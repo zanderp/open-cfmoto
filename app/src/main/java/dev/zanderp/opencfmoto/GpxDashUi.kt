@@ -2830,7 +2830,11 @@ class GpxDashUi(
         if (released) return
         released = true
         routeScope.cancel()
-        MapInputBridge.clear()
+        // Only the PROJECTED dash owns the handlebar sinks (it sets them in bind()'s `if (projected)`
+        // block). The phone-preview instance (projected=false) never sets them, so it must NOT clear
+        // them here — doing so silently kills handlebar input on the live bike dash when the preview
+        // is closed. See MapInputBridge / bind().
+        if (projected) MapInputBridge.clear()
         DashRemote.setHandler(null)
         DashRemote.setNavHandler(null)
         DashRemote.setThemeHandler(null)
