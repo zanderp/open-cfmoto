@@ -501,7 +501,7 @@
     <string name="conn_detail_connect_failed">Connect failed — see Logs / Share Logs</string>
     <string name="conn_detail_auto_connect_failed">Auto-connect failed — see Logs</string>
     <string name="conn_detail_need_bluetooth">Grant Nearby devices / Bluetooth, then tap Connect again</string>
-    <string name="conn_detail_aa_not_started">Android Auto didn\'t attach — open the Android Auto app once. If you\'re on AA 17.4 beta: Settings → Apps → Android Auto → Uninstall updates, then retry Connect. SoftAP/Mirror still prove the bike Wi‑Fi link.</string>
+    <string name="conn_detail_aa_not_started">Android Auto didn\'t attach. On Android Auto 17.4+ Google blocked the automatic start: open Android Auto, tap Version 10 times, then ⋮ → Start head unit server, and retry Connect. SoftAP/Mirror still prove the bike Wi‑Fi link.</string>
     <string name="main_aa_need_nearby_title">Nearby devices required</string>
     <string name="main_aa_need_nearby_message">Android Auto Connect needs Nearby devices (Bluetooth) so the phone can start wireless projection. Grant Nearby, turn Bluetooth on, then tap Connect again.\n\nMirror and Map do not need this.</string>
     <string name="main_aa_need_bt_on_message">Turn Bluetooth on, then tap Connect again. Android Auto Connect uses Bluetooth to start wireless projection on newer Android Auto builds.\n\nMirror and Map do not need this.</string>

@@ -7,12 +7,14 @@
 package dev.zanderp.opencfmoto.aa
 
 import android.content.Context
+import android.net.ConnectivityManager
 import dev.zanderp.opencfmoto.AaVideoBridge
 import dev.zanderp.opencfmoto.BikeWifi
 import dev.zanderp.opencfmoto.NightPrefs
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.view.Surface
+import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import kotlin.concurrent.thread
@@ -24,16 +26,38 @@ class AaReceiver(
 ) {
     companion object {
         const val PORT = 5288
+
+        /**
+         * Android Auto's own head unit server — the port the Desktop Head Unit talks to over
+         * adb forward. AA 17.4 ships WirelessStartupReceiver with android:enabled="false" and the
+         * activity it forwards to is not exported, so every AaSelfMode poke is swallowed silently:
+         * result=0, no log, no error. This port is the path Google left open — the rider starts
+         * it once from Android Auto's developer settings and gearhead listens here.
+         */
+        const val HEADUNIT_SERVER_PORT = 5277
+
+        /** Let the three AaSelfMode pokes (~3.6 s of escalation) play out before dialling out. */
+        private const val FIRST_DIAL_DELAY_MS = 4_000L
+        private const val DIAL_INTERVAL_MS = 2_000L
+        private const val DIAL_ATTEMPTS = 20
+        private const val DIAL_TIMEOUT_MS = 800
     }
 
     @Volatile private var running = false
     private var serverSocket: ServerSocket? = null
     private var acceptThread: Thread? = null
+    private var dialThread: Thread? = null
     private var nsdManager: NsdManager? = null
     private var registrationListener: NsdManager.RegistrationListener? = null
 
     @Volatile private var transport: AapTransport? = null
     @Volatile private var connection: SocketAccessoryConnection? = null
+    /**
+     * Held between claiming the session slot and [transport] going live, so an inbound accept and
+     * the head-unit-server dial-out can never both start a session.
+     */
+    @Volatile private var sessionStarting = false
+    private val sessionLock = Any()
     @Volatile private var steadyVideoFired = false
 
     /**
@@ -95,6 +119,10 @@ class AaReceiver(
         acceptThread = thread(name = "aa-accept", isDaemon = true) { acceptLoop() }
         // Self-mode (launching Google Android Auto) is triggered by MainActivity from the
         // foreground, via AaSelfMode.trigger(), to satisfy background-activity-launch rules.
+        // Those pokes never land on AA 17.4+, so we also dial OUT to gearhead's head unit server.
+        dialThread = thread(name = "aa-dial-hu", isDaemon = true) {
+            try { dialHeadunitServerLoop() } catch (_: InterruptedException) {}
+        }
     }
 
     /**
@@ -135,6 +163,8 @@ class AaReceiver(
         try { serverSocket?.close() } catch (_: Exception) {}
         serverSocket = null
         acceptThread?.interrupt(); acceptThread = null
+        dialThread?.interrupt(); dialThread = null
+        releaseSession()
         AaLog.sink = null
         log("[AA] receiver stopped")
     }
@@ -149,7 +179,7 @@ class AaReceiver(
                 break
             }
             log("[AA] <<< Android Auto connected from ${client.inetAddress?.hostAddress}")
-            if (transport != null) {
+            if (!claimSession()) {
                 log("[AA] already have a session — dropping extra connection")
                 try { client.close() } catch (_: Exception) {}
                 continue
@@ -174,6 +204,7 @@ class AaReceiver(
             AaVideoBridge.nightSink = null
             try { t.microphone?.stop("transport quit") } catch (_: Exception) {}
             transport = null
+            releaseSession()
             try { conn.disconnect() } catch (_: Exception) {}
             connection = null
             // Server keeps listening — AA (or the user) can reconnect. On a genuine user Exit we
@@ -224,6 +255,7 @@ class AaReceiver(
         if (!t.startHandshake(conn)) {
             log("[AA] handshake FAILED")
             transport = null
+            releaseSession()
             try { conn.disconnect() } catch (_: Exception) {}
             connection = null
             return
@@ -232,6 +264,74 @@ class AaReceiver(
         videoDecoder.setSurface(encoderSurface)
         t.startReading()
         log("[AA] read loop started — expecting ServiceDiscovery then video")
+    }
+
+    /** Claim the single session slot; false when one is live or another path got there first. */
+    private fun claimSession(): Boolean = synchronized(sessionLock) {
+        if (sessionStarting || transport != null) false else { sessionStarting = true; true }
+    }
+
+    private fun releaseSession() = synchronized(sessionLock) { sessionStarting = false }
+
+    /**
+     * AA 17.4+ fallback: connect OUT to Android Auto's head unit server instead of waiting for
+     * gearhead to connect IN. The AAP roles do not change — we are still the head unit, exactly
+     * as on an inbound :5288 socket — only the TCP direction flips, so [handleConnection] runs
+     * unmodified. Needs the rider to have started the server from Android Auto's developer settings
+     * (tap Version 10x, then the overflow menu).
+     */
+    private fun dialHeadunitServerLoop() {
+        Thread.sleep(FIRST_DIAL_DELAY_MS)
+        var attempt = 0
+        while (running && attempt < DIAL_ATTEMPTS) {
+            attempt++
+            if (transport != null || sessionStarting) return
+            val sock = try {
+                connectLoopback(HEADUNIT_SERVER_PORT)
+            } catch (e: Exception) {
+                if (attempt == 1 || attempt % 5 == 0) {
+                    log(
+                        "[AA] head unit server :$HEADUNIT_SERVER_PORT no answer " +
+                            "(try $attempt/$DIAL_ATTEMPTS) — ${e.javaClass.simpleName}: ${e.message}",
+                    )
+                }
+                null
+            }
+            if (sock != null) {
+                if (!claimSession()) {
+                    try { sock.close() } catch (_: Exception) {}
+                    return
+                }
+                log("[AA] >>> dialled OUT to Android Auto head unit server :$HEADUNIT_SERVER_PORT (AA 17.4 path)")
+                thread(name = "aa-session", isDaemon = true) { handleConnection(sock) }
+                return
+            }
+            Thread.sleep(DIAL_INTERVAL_MS)
+        }
+        if (running && transport == null) {
+            log(
+                "[AA] head unit server never answered on :$HEADUNIT_SERVER_PORT — in Android Auto " +
+                    "tap Version 10x, then overflow menu → Start head unit server",
+            )
+        }
+    }
+
+    /**
+     * Loopback connect that survives the bike Wi-Fi bind. While the process is bound to the bike
+     * [android.net.Network] there is no route to 127.0.0.1 — the same ENONET [start] already
+     * works around for the ServerSocket. Drop the bind for the few ms the connect takes, then
+     * restore the exact same Network. Established sockets ignore the process bind, so the bike link
+     * never notices.
+     */
+    private fun connectLoopback(port: Int): Socket {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val bound = try { cm?.boundNetworkForProcess } catch (_: Exception) { null }
+        try {
+            if (bound != null) try { cm?.bindProcessToNetwork(null) } catch (_: Exception) {}
+            return Socket().apply { connect(InetSocketAddress("127.0.0.1", port), DIAL_TIMEOUT_MS) }
+        } finally {
+            if (bound != null) try { cm?.bindProcessToNetwork(bound) } catch (_: Exception) {}
+        }
     }
 
     private fun registerNsd() {
