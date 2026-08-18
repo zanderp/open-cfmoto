@@ -1620,6 +1620,16 @@ class GpxDashUi(
         }
         root.findViewById<Button>(R.id.gpx_end).setOnClickListener { endRouteNow() }
         root.findViewById<Button>(R.id.gpx_end_bar).setOnClickListener { endRouteNow() }
+        // Phone/cockpit → dash END bridge: the rider ends the ride on the phone → clear the route,
+        // stop turn-by-turn voice, and drop to free ride on the LIVE (already-projected) dash — with
+        // NO PXC reconnect. Without this the bike dash kept the stale route AND kept speaking guidance
+        // (the phone only updated GpxSession; the dash never learned the trip ended).
+        DashRemote.setEndHandler {
+            main.post {
+                if (!isAlive() || released) return@post
+                endRouteNow()
+            }
+        }
         root.findViewById<Button>(R.id.gpx_park).setOnClickListener {
             val loc = lastLoc
             if (loc == null) {
@@ -2838,6 +2848,7 @@ class GpxDashUi(
         DashRemote.setHandler(null)
         DashRemote.setNavHandler(null)
         DashRemote.setThemeHandler(null)
+        DashRemote.setEndHandler(null)
         main.removeCallbacksAndMessages(null)
         locationListener?.let { listener ->
             try { locationManager?.removeUpdates(listener) } catch (_: Exception) {}

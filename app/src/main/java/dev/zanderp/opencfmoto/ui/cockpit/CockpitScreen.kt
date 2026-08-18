@@ -355,6 +355,9 @@ fun CockpitScreen(nav: NavController) {
         // GpxSession / the follow camera don't keep pointing at the old destination.
         if (navigating) {
             runCatching { GpxSession.finishToFreeRide() }
+            // Clear the old route on the live dash before the new pick re-targets it (startNavigation
+            // sends the fresh DashRemote.navigateTo); otherwise the stale route lingers in between.
+            if (DashRemote.isAvailable) runCatching { DashRemote.endNavigation() }
             following = false
             navigating = false
             navProgress = null
@@ -409,6 +412,9 @@ fun CockpitScreen(nav: NavController) {
     // follow camera and all nav state; GpxSession returns to FREE_RIDE (the dash projection follows).
     fun stopNavigation() {
         runCatching { GpxSession.finishToFreeRide() }
+        // Tell the LIVE bike dash the trip ended too, so it clears the route and stops turn-by-turn
+        // voice instead of showing a stale, still-talking navigation (no PXC reconnect).
+        if (DashRemote.isAvailable) runCatching { DashRemote.endNavigation() }
         clearSearchOverlays()
         following = false // stops the chase in the location listener
         navigating = false

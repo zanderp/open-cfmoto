@@ -16,6 +16,7 @@ object DashRemote {
     @Volatile private var navHandler: ((MapPlace) -> Unit)? = null
     @Volatile private var typeOnPhone: (() -> Unit)? = null
     @Volatile private var themeHandler: ((Boolean) -> Unit)? = null
+    @Volatile private var endHandler: (() -> Unit)? = null
 
     /** True when a dash is bound and can receive a search (e.g. projected to the bike). */
     val isAvailable: Boolean get() = handler != null
@@ -34,6 +35,10 @@ object DashRemote {
 
     fun setThemeHandler(h: ((Boolean) -> Unit)?) {
         themeHandler = h
+    }
+
+    fun setEndHandler(h: (() -> Unit)?) {
+        endHandler = h
     }
 
     /** Send a search query to the active dash. Returns false if no dash is listening. */
@@ -58,6 +63,18 @@ object DashRemote {
     /** Ask the phone UI to focus the destination field and show the keyboard. */
     fun requestTypeOnPhone(): Boolean {
         val h = typeOnPhone ?: return false
+        h()
+        return true
+    }
+
+    /**
+     * End the ride/route on the active (already-projected) dash: it drops the route, stops
+     * turn-by-turn voice, and returns to a clean free-ride map — with NO PXC reconnect. Called when
+     * the rider ends the trip on the phone so the bike dash doesn't keep showing a stale route (and
+     * keep speaking guidance). Returns false if no dash is listening.
+     */
+    fun endNavigation(): Boolean {
+        val h = endHandler ?: return false
         h()
         return true
     }
