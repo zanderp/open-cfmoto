@@ -82,6 +82,8 @@
     <string name="controls_handlebar_buttons">Handlebar buttons</string>
     <string name="controls_your_dash_is_a_touchscreen_just_tap_the_screen_t">Your dash is a touchscreen — just tap the screen to navigate. Handlebar-button control is meant for non-touch dashes (e.g. 450SR); on this bike it can\'t move the menu and only pauses your music.</string>
     <string name="controls_handlebar_buttons_drive_android_auto">Handlebar buttons drive Android Auto</string>
+    <string name="controls_updown_navigate">▲/▼ navigate the Android Auto menu</string>
+    <string name="controls_updown_navigate_desc">On: the ▲/▼ rocker moves the Android Auto menu (volume is set from the phone or the slider above). Off: ▲/▼ change the volume normally.</string>
     <string name="controls_requires_the_phone_paired_to_the_bike_over_bluet">Requires the phone paired to the bike over Bluetooth.\n\nWhile on, the bars drive the Android Auto UI (not track-skip). Music can keep playing — start/stop/skip by navigating that UI with the bars or the on-screen pad. Turn OFF only if you want the physical bars to control media again.</string>
     <string name="controls_customize_buttons">Customize buttons</string>
     <string name="res_match_panel_aspect">Match panel aspect</string>
