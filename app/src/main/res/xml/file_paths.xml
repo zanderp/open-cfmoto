@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="logs" path="logs/" />
+    <cache-path name="ota" path="ota/" />
     <cache-path name="settings" path="settings/" />
     <cache-path name="map-backup" path="map-backup/" />
     <cache-path name="trip-export" path="trip-export/" />

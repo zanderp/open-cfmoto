@@ -19,6 +19,7 @@ import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.Surface
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -66,6 +67,30 @@ class VideoPipeline(
      * 1024×464 `NaviVirtualDisplay` (not the scaled TARGET_DASH_WIDTH_DP heuristic).
      */
     private val ownDisplayDensityDpi: Int? = null,
+    // ─────────────── DEV PROBE HOOKS (all default off → production is byte-for-byte untouched) ───────────────
+    /**
+     * When true, THIS instance dumps encoder output to a .h264 file even with [DUMP_H264] off, tags the
+     * file "probe", and uses [PROBE_DUMP_CAP] so a ~60 s run is captured whole. Only [MapLibreVdProbe] sets it.
+     */
+    private val forceDump: Boolean = false,
+    /**
+     * When true, the drain loop emits a once-per-second FRAME COUNTER on a distinct logcat tag ([PROBE_TAG])
+     * so the MapLibre-VD probe's encoder output RATE can be watched live — the signal that answers the
+     * "does it keep producing frames with the screen off?" question. Only [MapLibreVdProbe] sets it.
+     */
+    private val probeFrameLog: Boolean = false,
+    /**
+     * DEV PROBE ONLY. When non-null in own-content mode, the VirtualDisplay [Presentation] hosts THIS
+     * content (a forced-MapLibre `MapView`) instead of the placeholder — invoked on the main thread with
+     * the themed presentation host + its context + an isAlive supplier. This is what forces MapLibre onto
+     * the app's REAL, proven VD+encoder pipeline so the renderer is the single isolated variable.
+     */
+    private val probePresentationContent: ((host: FrameLayout, presCtx: Context, isAlive: () -> Boolean) -> Unit)? = null,
+    /**
+     * DEV PROBE ONLY. Called on the main thread inside [stop] BEFORE the Presentation/VirtualDisplay are
+     * torn down, so the probe can release its MapLibre view + camera animation with no leak.
+     */
+    private val onProbeStop: (() -> Unit)? = null,
 ) {
     private val main = Handler(Looper.getMainLooper())
     private var codec: MediaCodec? = null
@@ -124,6 +149,11 @@ class VideoPipeline(
     private var dumpOut: java.io.OutputStream? = null
     private var dumpFrames = 0
     private var dumpPath: String? = null
+    private var dumpCap = DUMP_CAP
+    // DEV PROBE frame-rate counter state (see [countProbeFrame]).
+    private var probeFramesTotal = 0L
+    private var probeWindowStart = 0L
+    private var probeWindowBase = 0L
 
     fun start() {
         if (running) return
@@ -159,8 +189,11 @@ class VideoPipeline(
             else main.post { setupGpxPresentation() }
         } else {
             log("[VIDEO] own-content mode (Presentation)")
-            if (Looper.myLooper() == Looper.getMainLooper()) setupDisplayAndPresentation()
-            else main.post { setupDisplayAndPresentation() }
+            // DEV PROBE: same VD+encoder plumbing, but the Presentation hosts a forced-MapLibre MapView.
+            val setup: () -> Unit =
+                if (probePresentationContent != null) ::setupProbePresentation else ::setupDisplayAndPresentation
+            if (Looper.myLooper() == Looper.getMainLooper()) setup()
+            else main.post { setup() }
         }
     }
 
@@ -191,6 +224,12 @@ class VideoPipeline(
                 } catch (_: Exception) {
                 }
                 setInteger(MediaFormat.KEY_FRAME_RATE, profile.videoFrameRate)
+                // MapLibre GL free-runs (~60-115fps, no default cap) and floods this surface-input encoder; the
+                // dash wire is timestamp-less H.264 paced by arrival rate, so its real-time decoder greens out
+                // (see MapLibreDashController). Cap the INPUT rate HERE so excess GL frames are dropped at the
+                // encoder regardless of MapLibres own governor, which mis-paces on a secondary display vs a 120Hz
+                // primary (mapbox-maps-android#2654). Float key, API23+; harmless hint if the encoder ignores it.
+                try { setFloat(MediaFormat.KEY_MAX_FPS_TO_ENCODER, if (mapBoost) 24f else profile.videoFrameRate.toFloat()) } catch (_: Exception) {}
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, iframeSec)
                 // Surface-input encoders only emit on new buffers; a STATIC screen (e.g. mirror of
                 // an idle app) then produces zero frames and the bike times out. Repeat the last
@@ -461,6 +500,40 @@ class VideoPipeline(
         }
     }
 
+    /**
+     * DEV PROBE ONLY (own-content mode). Identical VirtualDisplay + encoder plumbing as
+     * [setupDisplayAndPresentation] / [setupGpxPresentation] — the ONE difference is that the
+     * Presentation hosts caller-supplied content ([probePresentationContent], a forced-MapLibre
+     * `MapView`) instead of the placeholder. That makes MapLibre-vs-osmdroid the single isolated
+     * variable feeding the real H.264 encoder, so the block-artifact question can be answered without
+     * confounding it with a hand-rolled parallel pipeline.
+     */
+    private fun setupProbePresentation() {
+        try {
+            val factory = probePresentationContent ?: run { setupDisplayAndPresentation(); return }
+            val display = createOwnVirtualDisplay() ?: return
+            val pres = Presentation(context, display)
+            // VirtualDisplay Presentation contexts lack the app theme — Material/AppCompat ?attr/… then
+            // fail to inflate. Same wrap the GPX dash presentation uses.
+            val themed = ContextThemeWrapper(pres.context, R.style.Theme_OpenCfMoto)
+            val host = FrameLayout(themed)
+            pres.setContentView(
+                host,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+            pres.show()
+            presentation = pres
+            log("[VIDEO] PROBE presentation shown on virtual display → ${width}x$height")
+            factory(host, themed) { running }
+        } catch (e: Exception) {
+            log("[VIDEO] PROBE presentation failed: $e — falling back to placeholder")
+            setupDisplayAndPresentation()
+        }
+    }
+
     @SuppressLint("MissingPermission")
     private fun setupGpxPresentation() {
         try {
@@ -545,6 +618,7 @@ class VideoPipeline(
                     log("[VIDEO] got codec config (SPS/PPS) ${bytes.size}b")
                 } else {
                     val isKey = info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0
+                    if (probeFrameLog) countProbeFrame()
                     if (awaitKeyframe && !isKey) {
                         // A bike client just attached but this is a P-frame — it references frames the
                         // client never received, so serving it would leave the dash decoder uninitialised
@@ -665,22 +739,49 @@ class VideoPipeline(
     }
 
     private fun maybeStartDump() {
-        if (!DUMP_H264 || dumpOut != null) return
+        if (!(DUMP_H264 || forceDump) || dumpOut != null) return
         try {
             val base = context.getExternalFilesDir(null) ?: run { log("[DUMP] no external files dir"); return }
             val dir = java.io.File(base, "video").apply { mkdirs() }
             val tag = when {
+                probePresentationContent != null -> "probe"
                 compositor -> "aa"
                 ProjectionHolder.projection != null -> "mirror"
                 else -> "own"
             }
+            dumpCap = if (forceDump) PROBE_DUMP_CAP else DUMP_CAP
             val f = java.io.File(dir, "opencfmoto-video-$tag.h264")
             dumpOut = java.io.BufferedOutputStream(java.io.FileOutputStream(f))
             dumpFrames = 0
             dumpPath = f.absolutePath
-            log("[DUMP] recording H.264 → ${f.absolutePath} (first $DUMP_CAP frames, then auto-stops)")
+            log("[DUMP] recording H.264 → ${f.absolutePath} (first $dumpCap frames, then auto-stops)")
         } catch (e: Exception) {
             log("[DUMP] open failed: $e"); dumpOut = null
+        }
+    }
+
+    /**
+     * DEV PROBE: tally every access unit the encoder emits and log the output RATE once per second on a
+     * distinct logcat tag ([PROBE_TAG]). This is the instrument for the screen-off question. Reading it:
+     *  • rate ≈ encoder fps  → MapLibre is still rendering new frames to the VD;
+     *  • rate ≈ 1 fps        → MapLibre STOPPED — only the encoder's static-frame repeat
+     *                          ([IDLE_ENCODER_REPEAT_US]) is still emitting the last picture;
+     *  • rate = 0            → the whole VD→encoder pipeline stalled.
+     */
+    private fun countProbeFrame() {
+        probeFramesTotal++
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (probeWindowStart == 0L) { probeWindowStart = now; probeWindowBase = 0L; return }
+        val elapsed = now - probeWindowStart
+        if (elapsed >= 1000L) {
+            val delta = probeFramesTotal - probeWindowBase
+            val fps = delta * 1000.0 / elapsed
+            val msg = "[PROBE-FPS] encoder frames total=$probeFramesTotal " +
+                "rate=${"%.1f".format(fps)}fps (+$delta in ${elapsed}ms) queueDrops=$droppedFrames"
+            android.util.Log.i(PROBE_TAG, msg)
+            log(msg)
+            probeWindowStart = now
+            probeWindowBase = probeFramesTotal
         }
     }
 
@@ -690,7 +791,7 @@ class VideoPipeline(
         try {
             d.write(au)
             dumpFrames++
-            if (dumpFrames >= DUMP_CAP) {
+            if (dumpFrames >= dumpCap) {
                 d.flush(); d.close(); dumpOut = null
                 log("[DUMP] complete: $dumpPath ($dumpFrames frames) — Share Log to send it")
             }
@@ -742,6 +843,8 @@ class VideoPipeline(
         try { gpxVoice?.shutdown() } catch (_: Exception) {}
         gpxVoice = null
         main.post {
+            // DEV PROBE: release the MapLibre view + camera animation BEFORE the Presentation/VD go away.
+            try { onProbeStop?.invoke() } catch (_: Exception) {}
             try { gpxDashUi?.release() } catch (_: Exception) {}
             gpxDashUi = null
             try { presentation?.dismiss() } catch (_: Exception) {}
@@ -780,5 +883,12 @@ class VideoPipeline(
         const val DUMP_H264 = false
         /** How many access units to capture before auto-stopping the dump (~20s at 30fps). */
         const val DUMP_CAP = 600
+
+        /** Distinct logcat tag for the DEV MapLibre-VD probe's once-per-second frame-rate line
+         *  ([countProbeFrame]) so it can be watched in isolation: `adb logcat -s MapLibreVdProbe:*`. */
+        const val PROBE_TAG = "MapLibreVdProbe"
+        /** Dump cap for the DEV probe: ~3000 AUs safely spans a 60 s run (incl. a mid-run screen-off
+         *  toggle) even at 30–45 fps, so the pulled .h264 covers the whole experiment. */
+        const val PROBE_DUMP_CAP = 3000
     }
 }

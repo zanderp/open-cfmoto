@@ -7,13 +7,25 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class MapPlace(
-    val name: String,
-    val lat: Double,
-    val lon: Double,
-    val category: String = "",
-    val subtitle: String = "",
-)
+/**
+ * The place model, relocated to the Overtake library (Stage 0b). This `typealias` points the fork's
+ * `MapPlace` at [dev.overtake.maps.model.MapPlace], whose field shape (name, lat, lon, category,
+ * subtitle, prominence) mirrors the fork's original EXACTLY — so every positional/named construction,
+ * the [MapPlaces] save/load below, and the [NominatimSearch] scorer compile unchanged. `prominence`
+ * is a transient, NON-persisted ranking signal (Photon/Nominatim `importance` + settlement extent),
+ * kept last so positional constructors of the five durable fields are unaffected; save/load writes
+ * only those five, so a reloaded favourite/recent comes back at 0.0 (boosted by being pinned, not this).
+ */
+typealias MapPlace = dev.overtake.maps.model.MapPlace
+
+/**
+ * A one-tap POI category chip, relocated to the Overtake library. This `typealias` (formerly a
+ * top-level alias in `NominatimSearch.kt`, which moved into the library in Stage 1) keeps the fork's
+ * `PoiChip` name resolvable in package `dev.zanderp.opencfmoto` — so the dash's `runPoi(chip: PoiChip)`
+ * / `runDashPoi(chip: PoiChip)` and the library's `NominatimSearch.POI_CHIPS` (a `List<PoiChip>`)
+ * compile unchanged. Fields `label` + `query` mirror the fork's original.
+ */
+typealias PoiChip = dev.overtake.maps.model.PoiChip
 
 /**
  * Favorites, map markers, and recent places/tracks for OpenCfMoto Map / GPX (local only).

@@ -19,6 +19,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.text.Editable
+import android.util.TypedValue
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.Surface
@@ -37,7 +38,23 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
+import dev.overtake.maps.RendererKind
+import dev.overtake.maps.contract.MapRenderer
+import dev.overtake.maps.search.NominatimSearch
+import dev.overtake.maps.route.offline.OfflinePoiIndex
 import dev.zanderp.opencfmoto.aa.AaInput
+import dev.zanderp.opencfmoto.settings.DashRenderer
+import dev.zanderp.opencfmoto.settings.SettingsStore
+import dev.zanderp.opencfmoto.ui.CockpitActivity
+import dev.zanderp.opencfmoto.ui.Routes
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import dev.overtake.maps.model.Route
 
 /**
  * Shared Map / GPX dash chrome: binds [R.layout.presentation_gpx] for bike Presentation
@@ -52,7 +69,10 @@ class GpxDashUi(
     private val projected: Boolean = false,
 ) {
     private val main = Handler(Looper.getMainLooper())
-    private var dash: DashMapEngine? = null
+    // Routing moved to the Overtake library's suspending Router (Stage 2). This dash isn't a
+    // LifecycleOwner, so it owns a Main-confined scope for those calls and cancels it in release().
+    private val routeScope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
+    private var dash: MapRenderer? = null
     private var voice: GpxVoice? = null
     /** Display cutout / system bar insets — applied to chrome margins, not the map (edge-to-edge). */
     private var insetL = 0
@@ -65,6 +85,81 @@ class GpxDashUi(
     private var sensorManager: SensorManager? = null
     private var compassListener: SensorEventListener? = null
     private var released = false
+
+    /**
+     * The renderer for THIS dash. BOTH the projected bike dash AND the phone preview now honor the
+     * persisted choice (`SettingsStore.dashRenderer`, default MAPLIBRE — proven clean on the VD → H.264
+     * encoder, probe commit 0c5b7c8). The phone used to hard-return MAPLIBRE, so the WYSIWYG preview
+     * ignored the rider's pick and its Mapsforge gate never fired. NOTE: the library still forces
+     * MapLibre whenever the host Context is an Activity (the phone preview's context is one), so on the
+     * phone this choice drives the Mapsforge gate + RendererKind mapping while MapLibre stays the actual
+     * engine — the documented phone-preview behavior. One-shot synchronous DataStore read at dash
+     * construction (cold path, warm-cached in practice — like the [MapPrefs] reads in [bind]); never
+     * ties the choice to live connectivity.
+     */
+    private fun resolveDashRenderer(): DashRenderer {
+        return runCatching {
+            runBlocking { SettingsStore(context.applicationContext).dashRenderer.first() }
+        }.getOrElse {
+            log("[MAP] dashRenderer read failed ($it) — defaulting MAPLIBRE")
+            DashRenderer.MAPLIBRE
+        }
+    }
+
+    /**
+     * Overlay a "Mapsforge needs an offline map — Download" card on the empty map host (built
+     * programmatically; this dash is a View layer, not Compose). The button opens the cockpit's
+     * offline-maps screen. Shown only when the Mapsforge renderer is selected and no `.map` is
+     * installed — the strict alternative to a silent osmdroid fallback.
+     */
+    private fun showMapsforgeNeedsMapPrompt(host: FrameLayout) {
+        val d = context.resources.displayMetrics.density
+        fun px(v: Int) = (v * d).toInt()
+        val card = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(0xE6101418.toInt())
+            setPadding(px(28), px(28), px(28), px(28))
+        }
+        val title = TextView(context).apply {
+            text = context.getString(R.string.ovk_mf_needs_map_title)
+            setTextColor(0xFFECEFF3.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+            gravity = Gravity.CENTER
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        val body = TextView(context).apply {
+            text = context.getString(R.string.ovk_mf_needs_map_body)
+            setTextColor(0xFFB6BEC8.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = px(10) }
+        }
+        val btn = MaterialButton(context).apply {
+            text = context.getString(R.string.ovk_mf_needs_map_cta)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = px(18) }
+            setOnClickListener {
+                runCatching { CockpitActivity.open(context, Routes.MAPSFORGE_MAPS) }
+                    .onFailure { log("[MAP] open Mapsforge maps failed: $it") }
+            }
+        }
+        card.addView(title)
+        card.addView(body)
+        card.addView(btn)
+        host.addView(
+            card,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
+    }
 
     /**
      * Inflate-ready [root] must be [R.layout.presentation_gpx].
@@ -130,10 +225,28 @@ class GpxDashUi(
         }
         ViewCompat.requestApplyInsets(root)
         val mapHost = root.findViewById<FrameLayout>(R.id.gpx_map_host)
-        val dashLocal = DashMapEngine(context, mapHost).also { dash = it }
+        // Renderer now lives in the Overtake library (Stage 3). Map the fork's persisted DashRenderer
+        // to the library's RendererKind, then attach the returned MapRenderer to THIS dash's host.
+        val dashRendererChoice = resolveDashRenderer()
+        val rendererKind = when (dashRendererChoice) {
+            DashRenderer.OSMDROID -> RendererKind.OSMDROID
+            DashRenderer.MAPSFORGE -> RendererKind.MAPSFORGE
+            DashRenderer.MAPLIBRE -> RendererKind.MAPLIBRE
+        }
+        val dashLocal = overtakeRenderer(context, rendererKind).also { dash = it }
+        dashLocal.attach(context, mapHost)
         dashLocal.setBuildings3d(buildings3d)
         dashLocal.onCreate(null)
         dashLocal.onResume()
+        // Strict Mapsforge gate (see DashMapEngine): the library draws NOTHING for MAPSFORGE with no
+        // usable `.map` — there is NO silent osmdroid fallback. Overlay a clear "download a map" prompt
+        // on the (empty) host so the rider knows why the map is blank and where to fix it.
+        if (dashRendererChoice == DashRenderer.MAPSFORGE &&
+            !runCatching { overtakeOffline(context).hasMapsforgeMaps() }.getOrDefault(true)
+        ) {
+            log("[MAP] Mapsforge selected but no .map installed — showing download prompt (no fallback)")
+            showMapsforgeNeedsMapPrompt(mapHost)
+        }
 
         val titleView = root.findViewById<TextView>(R.id.gpx_title)
         val statusView = root.findViewById<TextView>(R.id.gpx_status)
@@ -224,8 +337,8 @@ class GpxDashUi(
         refreshTitle()
         applyMapTheme()
 
-        fun applyRoadRoute(route: OsrmRouter.Route, name: String) {
-            liveNav = GpxNav(OsrmRouter.toTrack(name, route), route.steps)
+        fun applyRoadRoute(route: Route, name: String) {
+            liveNav = GpxNav(routeToTrack(name, route), route.steps)
             val pts = route.points.map { it.lat to it.lon }
             dashLocal.clearPreviewRoute()
             dashLocal.setRouteRemain(pts)
@@ -252,36 +365,32 @@ class GpxDashUi(
         fun requestOsrm(from: Location, reason: String) {
             val dest = liveDest ?: return
             statusView.text = "Routing…"
-            OfflineRouter.routeAsync(
-                context,
-                from.latitude, from.longitude, dest.lat, dest.lon,
-                onResult = { route ->
-                    main.post {
-                        if (!isAlive() || released) return@post
-                        applyRoadRoute(route, dest.name)
-                        statusView.text =
-                            "Route · ${GpxNav.formatDistance(route.distanceM, units)}"
-                        // Don't announce a "ready" trip that's basically already the pin.
-                        val worthAnnounce = route.distanceM >= 150.0
-                        if (voiceOn && reason == "recalc" && worthAnnounce) {
-                            voiceLocal.speak("Route updated")
-                        } else if (voiceOn && reason == "start" && worthAnnounce) {
-                            voiceLocal.speak("Route ready")
-                        }
-                        log(
-                            "[GPX] route $reason ${route.points.size} pts " +
-                                "${route.distanceM.toInt()}m",
-                        )
-                    }
-                },
-                onError = { err ->
-                    main.post {
-                        if (!isAlive() || released) return@post
-                        statusView.text = "No road route · straight line"
-                        log("[GPX] route failed ($reason): $err")
-                    }
-                },
-            )
+            // Extracted Router.route() (offline pack / Valhalla / OSRM). Suspends off-main and resumes
+            // here on Main via routeScope — same behaviour as the old background-thread + main.post.
+            val router = overtakeRouter(context)
+            val opts = MapPrefs.routeOptions(context)
+            val f = dev.overtake.maps.model.GeoPoint(from.latitude, from.longitude)
+            val t = dev.overtake.maps.model.GeoPoint(dest.lat, dest.lon)
+            routeScope.launch {
+                val result = runCatching { router.route(f, t, opts) }.getOrNull()
+                if (!isAlive() || released) return@launch
+                val route = result?.routes?.firstOrNull()
+                if (route == null) {
+                    statusView.text = "No road route · straight line"
+                    log("[GPX] route failed ($reason): ${result?.warning ?: "No route available"}")
+                    return@launch
+                }
+                applyRoadRoute(route, dest.name)
+                statusView.text = "Route · ${GpxNav.formatDistance(route.distanceM, units)}"
+                // Don't announce a "ready" trip that's basically already the pin.
+                val worthAnnounce = route.distanceM >= 150.0
+                if (voiceOn && reason == "recalc" && worthAnnounce) {
+                    voiceLocal.speak("Route updated")
+                } else if (voiceOn && reason == "start" && worthAnnounce) {
+                    voiceLocal.speak("Route ready")
+                }
+                log("[GPX] route $reason ${route.points.size} pts ${route.distanceM.toInt()}m")
+            }
         }
         val arriveCard = root.findViewById<View>(R.id.gpx_arrive_card)
         val arriveTitle = root.findViewById<TextView>(R.id.gpx_arrive_title)
@@ -380,9 +489,9 @@ class GpxDashUi(
         var deviceHeading = 0f
         var haveDeviceHeading = false
         var pendingPlace: MapPlace? = null
-        var pendingRoute: OsrmRouter.Route? = null
+        var pendingRoute: Route? = null
         // Route options (Google/Waze-style alternatives) shown in the preview; index 0 = recommended.
-        var pendingRoutes: List<OsrmRouter.Route> = emptyList()
+        var pendingRoutes: List<Route> = emptyList()
         var selectedRouteIdx = 0
         // Assigned once search-result rendering helpers exist below (avoids forward-reference).
         var showIdle: () -> Unit = {}
@@ -826,37 +935,35 @@ class GpxDashUi(
             dashLocal.zoomToRoutes(
                 listOf(listOf(loc.latitude to loc.longitude, place.lat to place.lon)),
             )
-            OfflineRouter.routeAlternativesDetailedAsync(
-                context,
-                loc.latitude, loc.longitude, place.lat, place.lon,
-                onResult = { result ->
-                    main.post {
-                        if (!isAlive() || released || pendingPlace != place || pinSetupOnly) return@post
-                        if (result.routes.isEmpty()) return@post
-                        pendingRoutes = result.routes
-                        selectRoute(0, loc, place)
-                        if (!result.avoidHonored || result.warning != null) {
-                            val warn = result.warning ?: "Avoid setting not applied"
-                            previewMeta.text = listOfNotNull(
-                                previewMeta.text?.toString()?.takeIf { it.isNotBlank() },
-                                warn,
-                            ).joinToString(" · ")
-                            statusView.text = warn
-                            log("[GPX] $warn")
-                        }
+            // Extracted Router.alternatives() → RouteResult (routes + avoidHonored + warning).
+            val router = overtakeRouter(context)
+            val opts = MapPrefs.routeOptions(context)
+            val f = dev.overtake.maps.model.GeoPoint(loc.latitude, loc.longitude)
+            val t = dev.overtake.maps.model.GeoPoint(place.lat, place.lon)
+            routeScope.launch {
+                val outcome = runCatching { router.alternatives(f, t, opts) }
+                if (!isAlive() || released || pendingPlace != place || pinSetupOnly) return@launch
+                outcome.onSuccess { result ->
+                    if (result.routes.isEmpty()) return@onSuccess
+                    pendingRoutes = result.routes
+                    selectRoute(0, loc, place)
+                    if (!result.avoidHonored || result.warning != null) {
+                        val warn = result.warning ?: "Avoid setting not applied"
+                        previewMeta.text = listOfNotNull(
+                            previewMeta.text?.toString()?.takeIf { it.isNotBlank() },
+                            warn,
+                        ).joinToString(" · ")
+                        statusView.text = warn
+                        log("[GPX] $warn")
                     }
-                },
-                onError = { err ->
-                    main.post {
-                        if (!isAlive() || released || pendingPlace != place || pinSetupOnly) return@post
-                        pendingRoute = null
-                        dashLocal.setToDest(loc.latitude, loc.longitude, place.lat, place.lon)
-                        dashLocal.setCenter(place.lat, place.lon, 15.0)
-                        previewMeta.text = "No road route · straight line"
-                        log("[GPX] preview route failed: $err")
-                    }
-                },
-            )
+                }.onFailure { err ->
+                    pendingRoute = null
+                    dashLocal.setToDest(loc.latitude, loc.longitude, place.lat, place.lon)
+                    dashLocal.setCenter(place.lat, place.lon, 15.0)
+                    previewMeta.text = "No road route · straight line"
+                    log("[GPX] preview route failed: ${err.message}")
+                }
+            }
         }
         fun showSearchResults(list: List<MapPlace>) {
             searchResults.removeAllViews()
@@ -1045,7 +1152,7 @@ class GpxDashUi(
                 val sub = listOf(dist, p.subtitle).filter { it.isNotBlank() }.joinToString(" · ")
                 p.copy(category = label, subtitle = sub)
             }.sortedBy { OverpassClient.approxMetres(loc.latitude, loc.longitude, it.lat, it.lon) }
-        fun runDashPoi(chip: NominatimSearch.PoiChip) {
+        fun runDashPoi(chip: PoiChip) {
             val loc = lastLoc
             if (loc == null) {
                 searchStatus.text = "Need GPS for nearby POI"
@@ -1341,6 +1448,22 @@ class GpxDashUi(
                 searchInput.setText(q)
                 searchInput.setSelection(q.length)
                 runDashSearch(q)
+            }
+        }
+        // Phone/cockpit → dash navigate bridge: re-target the LIVE (already-projected) dash to a
+        // destination — route + turn-by-turn — with NO PXC reconnect. Same path as the "Go" button.
+        DashRemote.setNavHandler { place ->
+            main.post {
+                if (!isAlive() || released) return@post
+                startNavigationTo(place)
+            }
+        }
+        // Phone/cockpit → dash theme bridge: the on-map day/night/auto toggle flips the LIVE dash in
+        // place (no PXC reconnect). The phone already wrote NightPrefs; applyMapTheme re-reads it.
+        DashRemote.setThemeHandler {
+            main.post {
+                if (!isAlive() || released) return@post
+                applyMapTheme()
             }
         }
         root.findViewById<View>(R.id.gpx_search_go).setOnClickListener {
@@ -1758,35 +1881,29 @@ class GpxDashUi(
             previewName.text = place.name
             previewMeta.text = "There & back · returning home"
             refreshChrome()
-            OfflineRouter.circuitAlternativesAsync(
-                context,
-                loc.latitude,
-                loc.longitude,
-                place.lat,
-                place.lon,
-                onResult = { routes ->
-                    main.post {
-                        if (!isAlive() || released || pendingPlace != place) return@post
-                        if (routes.isEmpty()) {
-                            previewMeta.text = "No circuit found"
-                            return@post
-                        }
-                        pendingRoutes = routes
-                        selectRoute(0, loc, place)
-                        previewMeta.text = listOfNotNull(
-                            previewMeta.text?.toString()?.takeIf { it.isNotBlank() },
-                            "There & back · returns home",
-                        ).joinToString(" · ")
-                    }
-                },
-                onError = { err ->
-                    main.post {
-                        if (!isAlive() || released) return@post
-                        previewMeta.text = err
-                        statusView.text = err
-                    }
-                },
-            )
+            // Extracted Router.circuit() = out-and-back to the picked place, one route (or empty +
+            // warning). Old empty/error path set previewMeta + statusView to the message; preserved.
+            val router = overtakeRouter(context)
+            val opts = MapPrefs.routeOptions(context)
+            val f = dev.overtake.maps.model.GeoPoint(loc.latitude, loc.longitude)
+            val t = dev.overtake.maps.model.GeoPoint(place.lat, place.lon)
+            routeScope.launch {
+                val res = runCatching { router.circuit(f, t, opts) }.getOrNull()
+                if (!isAlive() || released || pendingPlace != place) return@launch
+                val routes = res?.routes.orEmpty()
+                if (routes.isEmpty()) {
+                    val msg = res?.warning ?: "Couldn't build there-and-back circuit"
+                    previewMeta.text = msg
+                    statusView.text = msg
+                    return@launch
+                }
+                pendingRoutes = routes
+                selectRoute(0, loc, place)
+                previewMeta.text = listOfNotNull(
+                    previewMeta.text?.toString()?.takeIf { it.isNotBlank() },
+                    "There & back · returns home",
+                ).joinToString(" · ")
+            }
             if (voiceOn) voiceLocal.speak("Building there and back circuit")
         }
         root.findViewById<Button>(R.id.gpx_create_circuit)?.setOnClickListener { startCircuit() }
@@ -2292,6 +2409,7 @@ class GpxDashUi(
                 }
                 applyProgress(prog, speedKmh, loc)
                 // Auto-reroute: sustained off-route in NAV_TO recalculates from the current spot.
+                // Stickiness (Google-Maps): recompute fires ONLY here (genuine off-route) or on an explicit user re-route — NEVER on a connectivity change; no network callback recomputes a route.
                 if (liveMode == GpxSession.Mode.NAV_TO && dest != null && prog != null) {
                     if (prog.offTrackM > 80) {
                         if (offRouteSinceMs == 0L) offRouteSinceMs = now
@@ -2711,8 +2829,11 @@ class GpxDashUi(
     fun release() {
         if (released) return
         released = true
+        routeScope.cancel()
         MapInputBridge.clear()
         DashRemote.setHandler(null)
+        DashRemote.setNavHandler(null)
+        DashRemote.setThemeHandler(null)
         main.removeCallbacksAndMessages(null)
         locationListener?.let { listener ->
             try { locationManager?.removeUpdates(listener) } catch (_: Exception) {}

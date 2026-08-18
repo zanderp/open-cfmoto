@@ -92,10 +92,44 @@ class ServiceDiscoveryResponse
                 }.build()
             }.build())
 
-            // --- Audio2 sink (system sounds). Android Auto rejects a head unit that advertises
-            //     no audio sink and drops the connection right after service discovery, so we
-            //     always advertise this even though the PCM is discarded — nav audio plays via the
-            //     phone's own output → BT helmet, not through us. See AapMessageHandlerType. ---
+            // --- Audio sinks. Android Auto sends nav voice / media / system as PCM to the head unit
+            //     (us) in self-mode. We advertise the three sinks and play the PCM on the phone's own
+            //     output (see AaAudioOutput) so the rider actually hears Maps. Formats here MUST match
+            //     AaAudioOutput's per-channel format. ---
+
+            // Media (music) — 48 kHz stereo.
+            services.add(Control.Service.newBuilder().also { service ->
+                service.id = Channel.ID_AUD
+                service.mediaSinkService = Control.Service.MediaSinkService.newBuilder().also { sink ->
+                    sink.availableType = Media.MediaCodecType.MEDIA_CODEC_AUDIO_PCM
+                    sink.audioType = Media.AudioStreamType.MEDIA
+                    sink.addAudioConfigs(
+                        Media.AudioConfiguration.newBuilder().apply {
+                            sampleRate = 48000
+                            numberOfBits = 16
+                            numberOfChannels = 2
+                        }.build()
+                    )
+                }.build()
+            }.build())
+
+            // Guidance / nav voice (speech) — 16 kHz mono.
+            services.add(Control.Service.newBuilder().also { service ->
+                service.id = Channel.ID_AU1
+                service.mediaSinkService = Control.Service.MediaSinkService.newBuilder().also { sink ->
+                    sink.availableType = Media.MediaCodecType.MEDIA_CODEC_AUDIO_PCM
+                    sink.audioType = Media.AudioStreamType.SPEECH
+                    sink.addAudioConfigs(
+                        Media.AudioConfiguration.newBuilder().apply {
+                            sampleRate = 16000
+                            numberOfBits = 16
+                            numberOfChannels = 1
+                        }.build()
+                    )
+                }.build()
+            }.build())
+
+            // System sounds — 16 kHz mono. (Also satisfies AA's requirement of at least one audio sink.)
             services.add(Control.Service.newBuilder().also { service ->
                 service.id = Channel.ID_AU2
                 service.mediaSinkService = Control.Service.MediaSinkService.newBuilder().also { sink ->

@@ -91,6 +91,28 @@ Valhalla routing (avoid highways/tolls fallback): public instance at
 valhalla1.openstreetmap.de — please be polite with request volume.
 
 --------------------------------------------------------------------------------
+Vendored source (bundled in this repository)
+--------------------------------------------------------------------------------
+
+BRouter — MIT License
+  The `brouter/` module is the pure-Java core of BRouter (the offline routing
+  engine behind OsmAnd / Locus / c:geo), vendored from release v1.7.10 so
+  OpenCfMoto can compute routes fully on-device with no connection and in a
+  single APK (no AIDL to a separately installed BRouter app). It merges BRouter's
+  five core modules — brouter-core, brouter-mapaccess, brouter-expressions,
+  brouter-codec, brouter-util (all `btools.*` packages) — with the Android app,
+  standalone server and map-creator tooling omitted. No BRouter source was
+  modified. Original work Copyright (c) BRouter contributors; licensed under the
+  MIT License (see brouter/LICENSE for the full text).
+  Upstream: https://github.com/abrensch/brouter
+
+  The bundled routing profile (`fastbike.brf`) and tag table (`lookups.dat`) in
+  app/src/main/assets/brouter/ are also from BRouter v1.7.10, MIT-licensed.
+  BRouter `.rd5` routing segments are downloaded on demand from
+  https://brouter.de/brouter/segments4/ — derived from OpenStreetMap data,
+  © OpenStreetMap contributors (ODbL). Please be polite with request volume.
+
+--------------------------------------------------------------------------------
 Trademarks
 --------------------------------------------------------------------------------
 

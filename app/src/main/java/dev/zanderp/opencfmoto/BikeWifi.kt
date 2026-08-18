@@ -60,7 +60,19 @@ object BikeWifi {
     // immediately keeps us on the bike's network long enough for the dash to reconnect on its own.
     private const val REJOIN_FAST_MS = 300L
     private const val REJOIN_BASE_MS = 2500L
-    private const val REJOIN_MAX_MS = 15000L
+    // Cap on the *gap* between rejoin requests. While a request is pending the framework's
+    // WifiNetworkFactory is actively scanning-and-associating and will grab the AP the instant it
+    // reappears; between requests we are blind. Mid-ride a returning AP must be caught fast, so the
+    // blind gap is capped short (was 15s — a 15s blind window noticeably delayed recovery).
+    private const val REJOIN_MAX_MS = 8000L
+    /**
+     * After this many consecutive silent reconnect failures, surface an actionable hint in the
+     * RECONNECTING detail. A long silent loop means either the SoftAP is really gone or the dash
+     * restarted with a new BSSID — the latter invalidates the WifiNetworkSpecifier approval, so a
+     * background re-join can NEVER succeed and only a foreground re-approve (tap Connect) recovers.
+     * ~6 attempts ≈ well over a minute of failure, so this never fires on a brief blip.
+     */
+    private const val REJOIN_HINT_AFTER = 6
     /** After a failed *first* join (picker canceled / timed out), wait before re-prompting. */
     private const val FIRST_JOIN_RETRY_MS = 4_000L
     /**
@@ -74,7 +86,16 @@ object BikeWifi {
      * Silent re-joins (already approved) can stay short.
      */
     private const val FIRST_JOIN_TIMEOUT_MS = 90_000
-    private const val REJOIN_TIMEOUT_MS = 12_000
+    /**
+     * Silent re-join window. A [WifiNetworkSpecifier] request keeps the framework scanning-and-
+     * associating for the whole time it is pending and auto-connects the moment the SoftAP is seen,
+     * so a LONGER window keeps us hunting continuously across more scan cycles — exactly what a
+     * mid-ride drop needs. 12s was too short: it tore the request down and rebuilt it from scratch
+     * (resetting the factory's in-flight scan/connect) far too often, leaving long blind gaps while
+     * the bike AP was actually there. This still fires onUnavailable so the retry/backoff loop keeps
+     * turning; parkAa (60s) still handles a genuinely-off bike.
+     */
+    private const val REJOIN_TIMEOUT_MS = 30_000
 
     fun join(
         context: Context,
@@ -178,6 +199,23 @@ object BikeWifi {
             }
 
             override fun onUnavailable() {
+                // A WifiNetworkSpecifier requestNetwork for an SSID the phone is ALREADY associated to
+                // is rejected by the framework INSTANTLY (~20 ms) as a duplicate — NOT the timeout this
+                // message implies. On the reconnect path that turns into an endless doomed loop
+                // (re-request → instant onUnavailable → re-request …) even though the bike Wi-Fi is fine
+                // and only the PXC/EasyConn SOCKET link dropped. Detect it and recover the socket layer
+                // on the live network instead of re-requesting Wi-Fi. First-connect (!firstDelivered) is
+                // left untouched (its picker guidance below still runs). See recoverSocketLinkOnLiveNetwork.
+                if (firstDelivered && bikeWifiStillUp()) {
+                    logCb?.invoke(
+                        "Wi-Fi re-request rejected instantly — phone is STILL associated to \"$ssid\", so it " +
+                            "was a duplicate WifiNetworkSpecifier request, not a timeout: the Wi-Fi link is up " +
+                            "and the bike PXC/socket link is what dropped. Re-establishing the bike link on the " +
+                            "live network (no Wi-Fi re-request).",
+                    )
+                    recoverSocketLinkOnLiveNetwork()
+                    return
+                }
                 val timeoutSec = (if (firstDelivered) REJOIN_TIMEOUT_MS else FIRST_JOIN_TIMEOUT_MS) / 1000
                 logCb?.invoke(
                     "Wi-Fi join unavailable after ${timeoutSec}s " +
@@ -210,6 +248,19 @@ object BikeWifi {
                 "→ approve the phone's Wi‑Fi / device picker if it appears " +
                     "(do not leave it open past ${FIRST_JOIN_TIMEOUT_MS / 1000}s)",
             )
+        } else {
+            // Reconnect only. A WifiNetworkSpecifier request associates only once the framework's
+            // WifiNetworkFactory has a *scan result* matching the SoftAP SSID; mid-ride the scan cache
+            // is often stale/empty, so the request returns onUnavailable even though the bike AP is
+            // still broadcasting. The factory runs its own periodic scans, but they are rate-limited
+            // and can be crowded out — nudging a fresh scan as we (re)arm the request directly targets
+            // the "AP is up but the join times out" symptom. Best-effort: startScan may be throttled
+            // to a no-op (fine) and needs no extra permission beyond what the join already requires.
+            // Never done on the first join: that path drives the system picker, which scans itself.
+            try {
+                (appContext?.getSystemService(Context.WIFI_SERVICE) as? WifiManager)?.startScan()
+            } catch (_: Exception) {
+            }
         }
         cm.requestNetwork(req, cb, timeoutMs)
     }
@@ -246,13 +297,84 @@ object BikeWifi {
         }
         handler.postDelayed({
             if (!active) return@postDelayed
+            // Never fire a fresh WifiNetworkSpecifier request while the phone is STILL on the bike
+            // Wi-Fi: Android instant-rejects it as a duplicate (the reconnect-loop bug). If we are
+            // still associated, the socket/PXC layer is what dropped — recover THAT on the live
+            // network. Gated to the reconnect path; a genuinely-gone AP (not associated) still
+            // retries below exactly as before.
+            if (firstDelivered && bikeWifiStillUp()) {
+                logCb?.invoke(
+                    "skip Wi-Fi re-request — still associated to \"$ssid\"; recovering the bike PXC/socket " +
+                        "link on the live network instead (a duplicate Wi-Fi request would be instantly rejected).",
+                )
+                recoverSocketLinkOnLiveNetwork()
+                return@postDelayed
+            }
             logCb?.invoke("re-requesting bike Wi-Fi (attempt $rejoinAttempts) …")
             // Don't stomp the WAITING_FOR_BIKE state the service sets once AA is parked.
             if (ConnectionState.phase != Phase.WAITING_FOR_BIKE) {
-                ConnectionState.set(Phase.RECONNECTING, "waiting for bike Wi-Fi")
+                // After a long silent *reconnect* loop, tell the rider what actually recovers it (a
+                // fresh foreground join re-approves a changed BSSID / re-pops the picker). Stays in
+                // RECONNECTING and keeps retrying — this is a UI hint, not a state change, so it never
+                // fights the parked WAITING_FOR_BIKE path or stops the backoff loop. Gated on
+                // firstDelivered so the *first-connect* path keeps its original wording untouched
+                // (its own picker guidance already fires from onUnavailable).
+                val escalate = firstDelivered && rejoinAttempts >= REJOIN_HINT_AFTER
+                if (firstDelivered && rejoinAttempts == REJOIN_HINT_AFTER) {
+                    logCb?.invoke(
+                        "still no bike Wi-Fi after $rejoinAttempts tries — if the dash restarted, " +
+                            "tap Connect to re-approve the network (a background re-join can't).",
+                    )
+                }
+                val detail = if (escalate) {
+                    "still no bike Wi-Fi — if the dash restarted, tap Connect to re-approve"
+                } else {
+                    "waiting for bike Wi-Fi"
+                }
+                ConnectionState.set(Phase.RECONNECTING, detail)
             }
             registerCallback()
         }, delay)
+    }
+
+    /**
+     * True when the phone is still on the bike's Wi-Fi. If [currentNetwork] is set our specifier
+     * request is still satisfied (the Wi-Fi never dropped). If it was cleared by [onLost] but the STA
+     * re-associated to the SoftAP on its own, the live SSID still matches. In BOTH cases re-issuing a
+     * [WifiNetworkSpecifier] request would be a duplicate the framework rejects instantly (~20 ms
+     * onUnavailable), so the reconnect path must not do that — the drop is in the socket/PXC layer,
+     * not Wi-Fi. Mirrors the association check in [isSsidInRange].
+     */
+    private fun bikeWifiStillUp(): Boolean {
+        if (currentNetwork != null) return true
+        if (ssid.isBlank()) return false
+        val ctx = appContext ?: return false
+        return try {
+            val wm = ctx.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return false
+            if (!wm.isWifiEnabled) return false
+            val connected = wm.connectionInfo?.ssid?.trim('"')
+            connected != null && connected.equals(ssid, ignoreCase = true)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * The bike Wi-Fi is still associated but the PXC/EasyConn SOCKET link dropped (the common
+     * "reconnect loop" field bug: EasyConn :10930 refused / NSD empty while the SoftAP stays up). A
+     * fresh [WifiNetworkSpecifier] request here is a duplicate Android rejects instantly, spinning
+     * forever. Instead re-assert the process→bike bind and restart the prober on the SAME network —
+     * exactly what a genuine re-acquire does ([BikeLink.onWifiReacquired]) — and STOP the Wi-Fi rejoin
+     * loop: BikeWifi has nothing to do while associated; a real [onLost] restarts the loop if the AP
+     * ever truly drops. This is the automated equivalent of the proven manual "Cancel + Connect",
+     * minus the disconnect — it rebuilds the socket link that actually died, not the Wi-Fi that didn't.
+     */
+    private fun recoverSocketLinkOnLiveNetwork() {
+        rejoinAttempts = 0
+        handler.removeCallbacksAndMessages(null) // cancel any pending doomed re-request
+        val ctx = appContext
+        if (currentNetwork != null && ctx != null) rebindProcessToBike(ctx)
+        BikeLink.onWifiReacquired(currentNetwork)
     }
 
     /**

@@ -3,6 +3,7 @@
 // Part of OpenCfMoto. Free software under the GNU AGPL v3 or later; see LICENSE and NOTICE.
 package dev.zanderp.opencfmoto
 
+import dev.overtake.maps.search.OverpassSearch
 import org.json.JSONObject
 import kotlin.concurrent.thread
 import kotlin.math.abs
@@ -13,6 +14,12 @@ import kotlin.math.min
 /**
  * Lightweight Overpass helpers: nearby maxspeed (road restriction lite) and corridor POIs.
  * Phone internet required; results can be cached for the ride.
+ *
+ * The POI-CATEGORY search (nearby-by-tag, the search chips' "what's near me") moved to the Overtake
+ * library ([OverpassSearch]) in the map-subsystem extraction (Stage 1); [nearbyByTag] / [nearbyByTagAsync]
+ * here now DELEGATE to it, so the dash callers stay unchanged. The maxspeed + route-corridor helpers
+ * stay here: they speak the app's own `GpxPoint` / `MapUnits` (dash + GPX concerns), not the library's
+ * neutral models, so they were out of scope for the maps library.
  */
 object OverpassClient {
     private const val ENDPOINT = "https://overpass-api.de/api/interpreter"
@@ -51,6 +58,9 @@ object OverpassClient {
      * Real "what's near me" category search: finds OSM features carrying a tag (e.g. amenity=fuel)
      * within a radius of the rider, nearest first. This is what the category chips need — actual
      * fuel stations / cafes around you, not a text search for the word "fuel".
+     *
+     * The implementation now lives in the Overtake library ([OverpassSearch]); this delegates so the
+     * existing dash callers compile and behave unchanged.
      */
     fun nearbyByTagAsync(
         tag: String,
@@ -60,15 +70,7 @@ object OverpassClient {
         maxResults: Int = 30,
         onResult: (List<MapPlace>) -> Unit,
         onError: (String) -> Unit,
-    ) {
-        thread(name = "overpass-nearby") {
-            try {
-                onResult(nearbyByTag(tag, lat, lon, radiusM, maxResults))
-            } catch (e: Exception) {
-                onError(e.message ?: "Nearby search failed")
-            }
-        }
-    }
+    ) = OverpassSearch.nearbyByTagAsync(tag, lat, lon, radiusM, maxResults, onResult, onError)
 
     fun nearbyByTag(
         tag: String,
@@ -76,80 +78,7 @@ object OverpassClient {
         lon: Double,
         radiusM: Int = 6_000,
         maxResults: Int = 30,
-    ): List<MapPlace> {
-        val key = tag.substringBefore('=').trim()
-        val value = tag.substringAfter('=', "").trim()
-        if (key.isEmpty() || value.isEmpty()) return emptyList()
-        // Widen the search if the immediate area comes up empty (e.g. fuel out on the open road).
-        for (r in intArrayOf(radiusM, radiusM * 3, radiusM * 8)) {
-            val found = queryNearby(key, value, lat, lon, r, maxResults)
-            if (found.isNotEmpty()) return found
-        }
-        return emptyList()
-    }
-
-    private fun queryNearby(
-        key: String,
-        value: String,
-        lat: Double,
-        lon: Double,
-        radiusM: Int,
-        maxResults: Int,
-    ): List<MapPlace> {
-        val q = """
-            [out:json][timeout:25];
-            (
-              node["$key"="$value"](around:$radiusM,$lat,$lon);
-              way["$key"="$value"](around:$radiusM,$lat,$lon);
-            );
-            out center ${maxResults * 2};
-        """.trimIndent()
-        val els = post(q).optJSONArray("elements") ?: return emptyList()
-        val scored = ArrayList<Pair<MapPlace, Double>>(els.length())
-        for (i in 0 until els.length()) {
-            val o = els.getJSONObject(i)
-            val plat: Double
-            val plon: Double
-            when {
-                o.has("lat") && o.has("lon") -> {
-                    plat = o.getDouble("lat"); plon = o.getDouble("lon")
-                }
-                o.has("center") -> {
-                    val c = o.getJSONObject("center")
-                    plat = c.getDouble("lat"); plon = c.getDouble("lon")
-                }
-                else -> continue
-            }
-            val tags = o.optJSONObject("tags")
-            val brand = tags?.optString("brand")?.takeIf { it.isNotBlank() }
-                ?: tags?.optString("operator")?.takeIf { it.isNotBlank() }
-            val name = tags?.optString("name")?.takeIf { it.isNotBlank() }
-                ?: brand
-                ?: value.replace('_', ' ').replaceFirstChar { it.uppercase() }
-            val street = listOfNotNull(
-                tags?.optString("addr:street")?.takeIf { it.isNotBlank() },
-                tags?.optString("addr:housenumber")?.takeIf { it.isNotBlank() },
-            ).joinToString(" ")
-            val subtitle = listOfNotNull(
-                brand?.takeIf { it != name },
-                street.takeIf { it.isNotBlank() },
-            ).joinToString(" · ")
-            scored.add(
-                MapPlace(
-                    name = name,
-                    lat = plat,
-                    lon = plon,
-                    category = value,
-                    subtitle = subtitle,
-                ) to approxMetres(lat, lon, plat, plon),
-            )
-        }
-        return scored
-            .sortedBy { it.second }
-            .map { it.first }
-            .distinctBy { "${"%.5f".format(it.lat)},${"%.5f".format(it.lon)}" }
-            .take(maxResults)
-    }
+    ): List<MapPlace> = OverpassSearch.nearbyByTag(tag, lat, lon, radiusM, maxResults)
 
     fun maxspeedNear(lat: Double, lon: Double, radiusM: Int = 25): SpeedLimit {
         val key = "%.3f,%.3f".format(lat, lon)

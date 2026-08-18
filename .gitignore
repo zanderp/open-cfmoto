@@ -61,3 +61,6 @@ docs/**/*discord-ops*
 agent-tools/
 **/mcp.json
 
+
+# live QA screenshots (local only)
+*-live.png

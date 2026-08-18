@@ -245,7 +245,7 @@ class AndroidAutoService : Service() {
         // doesn't linger onto STREAMING as "Connected … — will resume when the bike is back".
         ConnectionState.set(Phase.STARTING_AA, BikeMemory.lastBikeName(applicationContext) ?: "")
         reacquireLocks()
-        updateNotification(getString(R.string.notif_aa_title), getString(R.string.notif_aa_reconnecting))
+        updateNotification(getString(if (GpxSession.active) R.string.notif_map_title else R.string.notif_aa_title), getString(R.string.notif_aa_reconnecting))
 
         startReceiver()
         if (receiver == null) { resumeFailedFallback(); return }
@@ -427,8 +427,8 @@ class AndroidAutoService : Service() {
      */
     fun updateForegroundType(allowMicrophone: Boolean = true): Boolean {
         val notification = buildNotification(
-            getString(R.string.notif_aa_title),
-            getString(R.string.notif_aa_receiving),
+            getString(if (GpxSession.active) R.string.notif_map_title else R.string.notif_aa_title),
+            getString(if (GpxSession.active) R.string.notif_map_text else R.string.notif_aa_receiving),
             resume = false,
         )
         val hasLocation = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==

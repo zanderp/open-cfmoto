@@ -1,5 +1,6 @@
 ﻿plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.compose.compiler)
 }
 
 android {
@@ -17,8 +18,12 @@ android {
         applicationId = "dev.zanderp.opencfmoto"
         minSdk = 29
         targetSdk = 36
-        versionCode = 68
-        versionName = "2.0.13-pre"
+        // Optional build number (-PbuildNumber) bumps versionCode/versionName so a newer local build
+        // installs over an older one. Blank → the upstream base version (2.0.13-pre / 68 when synced
+        // with upstream/main).
+        val buildNumber = (project.findProperty("buildNumber") as String?)?.takeIf { it.isNotBlank() }
+        versionCode = buildNumber?.toIntOrNull() ?: 68
+        versionName = "2.0.13-pre" + (buildNumber?.let { ".$it" } ?: "")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -31,10 +36,10 @@ android {
         buildConfigField("String", "ORS_API_KEY", "\"$orsDefaultKey\"")
 
         // Anonymous telemetry Worker base URL (no trailing slash). Empty disables uploads.
-        // Override: -PtelemetryUrl=https://….workers.dev  or TELEMETRY_URL env / gradle.properties
+        // CFMOTO-first fork: OFF by default (explicit consent). Opt in with -PtelemetryUrl=… .
         val telemetryUrl = (project.findProperty("telemetryUrl") as String?)
             ?: System.getenv("TELEMETRY_URL")
-            ?: "https://opencfmoto-telemetry.hello-3d9.workers.dev"
+            ?: ""
         buildConfigField("String", "TELEMETRY_URL", "\"$telemetryUrl\"")
 
         // Short git hash for Share Logs triage (configuration-cache safe).
@@ -69,6 +74,7 @@ android {
 
     buildFeatures {
         buildConfig = true
+        compose = true
     }
 
     // Wireless Android Auto needs the packaged aa_privkey (same as prior releases).
@@ -94,8 +100,34 @@ dependencies {
     implementation(libs.conscrypt.android)
     implementation(libs.osmdroid)
     implementation(libs.maplibre)
+    // BRouter (MIT on-device offline routing) now ships INSIDE the Overtake library (:overtake-maps
+    // depends on the lib's own :brouter); the app pulls it transitively from the composite build. The
+    // fork's identical copy + this direct dependency were retired in the Router-extraction stage.
     // Compile-time OkHttp for MapLibre cellular pin (MapLibre brings it as runtime only).
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Extracted Overtake map/routing/search library, consumed via the composite build declared in
+    // settings.gradle.kts (Gradle substitutes this for the included build's :overtake-maps). Provides
+    // the pure-Kotlin MODEL classes (MapPlace/PoiChip/RouteOptions/RouteMode via typealias), the
+    // place-SEARCH stack (Stage 1) and the ROUTING engine (Stage 2 — OfflineMaps.create().router, with
+    // the vendored BRouter offline engine). osmdroid/maplibre/okhttp transitives match the versions
+    // above and dedupe by coordinates. The BRouter `exclude` is gone: the app no longer ships its own
+    // :brouter, so the lib's copy is the single btools.* provider (no dex-merge duplicate).
+    implementation("dev.overtake:overtake-maps:0.1.0-dev")
+
+    // Jetpack Compose UI stack (cockpit redesign). BOM keeps the family in sync.
+    implementation(platform(libs.compose.bom))
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.compose.ui)
+    implementation(libs.compose.ui.graphics)
+    implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.compose.material3)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.datastore.preferences)
+    debugImplementation(libs.compose.ui.tooling)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)

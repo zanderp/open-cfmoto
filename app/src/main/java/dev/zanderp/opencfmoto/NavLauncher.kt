@@ -112,6 +112,39 @@ object NavLauncher {
         return false
     }
 
+    /**
+     * Start Waze turn-by-turn to a destination. Waze reaches the dash via the mirror (single-app
+     * MediaProjection) — it has no Android Auto self-projection like the built-in map. Deep-link docs:
+     * https://developers.google.com/waze/deeplinks . We ask for the app explicitly (com.waze) so the
+     * https link doesn't bounce to a browser; the waze:// scheme is the fallback.
+     * @return true if we handed the destination to Waze.
+     */
+    fun navigateWaze(context: Context, destination: String, log: (String) -> Unit): Boolean {
+        val dest = destination.trim()
+        if (dest.isEmpty()) {
+            log("[NAV] no destination for Waze")
+            return false
+        }
+        val enc = Uri.encode(dest)
+        val intents = listOf(
+            Intent(Intent.ACTION_VIEW, Uri.parse("https://waze.com/ul?q=$enc&navigate=yes"))
+                .setPackage(WAZE_PKG),
+            Intent(Intent.ACTION_VIEW, Uri.parse("waze://?q=$enc&navigate=yes")),
+        )
+        return startFirst(context, intents, dest, log)
+    }
+
+    /** Just open Waze (no destination) — used when the provider is Waze but no route is set yet. */
+    fun openWaze(context: Context, log: (String) -> Unit): Boolean {
+        val intents = listOf(
+            context.packageManager.getLaunchIntentForPackage(WAZE_PKG),
+            Intent(Intent.ACTION_VIEW, Uri.parse("waze://")),
+        ).filterNotNull()
+        return startFirst(context, intents, "Waze", log)
+    }
+
+    private const val WAZE_PKG = "com.waze"
+
     /** Send the user to the system page where "Display over other apps" can be granted. */
     fun overlayPermissionIntent(context: Context) =
         Intent(
