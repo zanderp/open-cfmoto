@@ -16,5 +16,6 @@ internal object DashClock {
         "MLN", "ZM_", "ZM-", "VOGE", "CFMOTO", "QJ", "GRIFFIN", "MORINI",
         "XCAPE", "X-CAPE", "CARBIT", "EASYCONN", "YUNMO", "ALLTR",
         "P2P", "SOFTAP",
+        "ZT", // Zontes (e.g. ZT851066 — ZT125T-X 125X dash BT name), confirmed via Discord #clock-issue
     )
 }
