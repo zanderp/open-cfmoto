@@ -59,6 +59,9 @@ object BikeWifiP2p {
     @Volatile private var connectIssued = false
     @Volatile private var timeoutThread: Thread? = null
 
+    /** True only while Android reports an active Wi-Fi Direct group. */
+    val isConnected: Boolean get() = active && connected
+
     /**
      * @param onConnected called with (phoneBindIp, bikeGatewayIp) once the group is formed and
      *   both addresses are known. Pass these straight to [EasyConnProber.start].
@@ -279,7 +282,12 @@ object BikeWifiP2p {
                         mgr.requestConnectionInfo(chan) { info ->
                             log("$TAG conn: groupFormed=${info.groupFormed} isGO=${info.isGroupOwner} " +
                                 "goAddr=${info.groupOwnerAddress?.hostAddress}")
-                            if (info.groupFormed && !connected) onGroupFormed(mgr, chan, info, onConnected, onFailed, log)
+                            if (info.groupFormed && !connected) {
+                                onGroupFormed(mgr, chan, info, onConnected, onFailed, log)
+                            } else if (!info.groupFormed && connected) {
+                                connected = false
+                                log("$TAG group lost")
+                            }
                         }
                     }
                 }
@@ -474,4 +482,3 @@ object BikeWifiP2p {
         }
     }
 }
-
