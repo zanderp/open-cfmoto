@@ -5,7 +5,7 @@
     <string name="about_copyright_body">Utrzymywany przez Alexandru (zanderp). Wolne oprogramowanie na licencji GNU AGPL v3 lub nowszej — zobacz LICENSE i NOTICE w repozytorium, aby zapoznać się z pełnym tekstem dotyczącym praw autorskich i autorstwa.</string>
     <string name="about_license_body">Możesz używać, studiować, udostępniać i modyfikować tę aplikację na podstawie umowy AGPL. Jeśli rozpowszechniasz zmodyfikowaną wersję (w tym jako usługę sieciową), musisz zaoferować kompletne odpowiednie źródło w ramach tej samej licencji.</string>
     <string name="about_credits">Zbudowany w oparciu o linię społeczności open-cfmoto:\n\n• dcoletto / coletz — oryginalne dzieło QR i EasyConn\n• BojanJ — integracja odbiornika Android Auto\n• richardbizik — obsługa 1000 MT‑X\n• ionutradu252 / open-cflink — sterowanie na kierownicy, marginesy, ponowne połączenie i polerowanie\n• eugen0309 — ścieżka Wi-Fi Direct / CL-C450\n• odnowiona jednostka główna — stos projekcyjny Android Auto (AGPL)\n\nI wszyscy, którzy testowali motocykly, udostępniali dzienniki i zgłaszali problemy.</string>
-    <string name="about_disclaimer">OpenCfMoto to niezależny projekt społecznościowy. Nie jest powiązany, wspierany ani sponsorowany przez CFMOTO, Carbit, Google, Android Auto ani inne marki, które licencjonują kreski w stylu EasyConnect (w tym Voge, Zontes, Moto Morini, Benelli, QJ Motor, Morbidelli i Longjia). CFMOTO, MotoPlay, EasyConn, Carbit, Android, Android Auto i powiązane znaki są znakami towarowymi odpowiednich właścicieli. Korzystasz na własne ryzyko — ustal trasę przed jazdą.</string>
+    <string name="about_disclaimer">OpenCfMoto to niezależny projekt społecznościowy. Nie jest powiązany, wspierany ani sponsorowany przez CFMOTO, Carbit, Google, Android Auto ani inne marki, które licencjonują ekrany w stylu EasyConnect (w tym Voge, Zontes, Moto Morini, Benelli, QJ Motor, Morbidelli i Longjia). CFMOTO, MotoPlay, EasyConn, Carbit, Android, Android Auto i powiązane znaki są znakami towarowymi odpowiednich właścicieli. Korzystasz na własne ryzyko — ustal trasę przed jazdą.</string>
     <string name="supported_bikes_intro">Współpracuje z CFMoto MotoPlay / EasyConnect i innymi myślnikami platformy Carbit, które pokazują kod QR parowania. Nie jest wymagany T-BOX. USA i zagranica — jeśli widzisz kod QR, wypróbuj Połącz.</string>
     <string name="supported_bikes_confirmed_title">Potwierdzone za pomocą OpenCfMoto</string>
     <string name="supported_bikes_confirmed">CFMoto: 800MT (MT‑X / Explore / Explore GT) · 1000 MT‑X · 800NK (US CRCP) · 800NK Advanced · 675NK · 700MT Adventure · 450MT · 450SR (+ SR‑S / TC) · 450CL‑C / CL‑C450 · 450NK · 150SC scooter · CFORCE 850 / 1000 · GOES Terrox 1000 / Gladiator G3 1000\nInne: Voge DS800 Rally / DS900X · Moto Morini X-Cape 649 / 700 / Seiemmezzo · Benelli TRK 702 / 702X · Rieju 307 · Zontes 125X · Morbidelli T1002VX / T352X · QJ Motor SRK800RR / SRK450RR / SRK250RD / SRT 600 / SRV600</string>
@@ -45,6 +45,9 @@
     <string name="buttons_allow_navigate_from_handlebars">Zezwalaj na nawigację z kierownicy</string>
     <string name="buttons_starting_navigation_from_a_handlebar_button_whil">Rozpoczęcie nawigacji za pomocą przycisku na kierownicy, gdy aplikacja znajduje się w kieszeni, wymaga uprawnienia „Wyświetlaj nad innymi aplikacjami”. Bez tego użyj zamiast tego pola „Nawiguj do…” w aplikacji.</string>
     <string name="buttons_enable_display_over_other_apps">Włącz opcję „Wyświetlaj nad innymi aplikacjami”</string>
+    <string name="setup_aa_dpi">Rozmiar tekstu Android Auto (DPI)</string>
+    <string name="setup_aa_dpi_desc">Opcja 'Auto' używa profilu motocykla. Wyższe DPI powoduje, że Mapy / AA są większe (użyteczne gdy czcionka ekranu motocykla jest zbyt mała).</string>
+    <string name="setup_aa_dpi_auto">Auto</string>    
     <string name="controls_controls">Sterowanie</string>
     <string name="controls_drive_android_auto_without_touching_the_dash_typ">Steruj Android Auto bez dotykania deski rozdzielczej: wpisz miejsce docelowe, użyj klawiatury ekranowej lub zamapuj przyciski na kierownicy motocyklu.</string>
     <string name="controls_navigate_to">Nawiguj do…</string>
@@ -68,13 +71,13 @@
     <string name="controls_home">Dom</string>
     <string name="controls_voice">Głos</string>
     <string name="controls_handlebar_buttons">Przyciski na kierownicy</string>
-    <string name="controls_your_dash_is_a_touchscreen_just_tap_the_screen_t">Ekran twojego motocykla to ekran dotykowy — wystarczy dotknąć ekranu, aby nawigować. Sterowanie za pomocą przycisków na kierownicy jest przeznaczone dla kresek bezdotykowych (np. 450SR); w tym motocyklu nie można przesuwać menu, a jedynie wstrzymywać odtwarzanie muzyki.</string>
+    <string name="controls_your_dash_is_a_touchscreen_just_tap_the_screen_t">Ekran twojego motocykla to ekran dotykowy — wystarczy dotknąć ekranu, aby nawigować. Sterowanie za pomocą przycisków na kierownicy jest przeznaczone dla ekranów niedotykowych (np. 450SR); w tym motocyklu nie można przesuwać menu, a jedynie wstrzymywać odtwarzanie muzyki.</string>
     <string name="controls_handlebar_buttons_drive_android_auto">Przyciski na kierownicy sterują systemem Android Auto</string>
     <string name="controls_requires_the_phone_paired_to_the_bike_over_bluet">Wymaga telefonu sparowanego z motocyklem przez Bluetooth.\n\nGdy to ustawienie jest włączone to przyciski przy kierownicy sterują interfejsem Android Auto (zamiast sterowania muzyką). Muzyka nadal może być odtwarzana — odtwórz/zatrzymuj/następny utwór poprzez interfejs użytkownika w aplikacji OpenCfmoto na telefonie (przyciski ekranowe). Wyłącz tylko wtedy, gdy chcesz, aby fizyczne przyciski przy kierownicy ponownie kontrolowały multimedia.</string>
     <string name="controls_customize_buttons">Dostosuj przyciski</string>
     <string name="res_match_panel_aspect">Dopasuj proporcje panelu</string>
     <string name="res_makes_android_auto_render_at_your_dash_s_real_as">Sprawia, że ​​Android Auto renderuje się w rzeczywistych proporcjach ekranu motocykla (marginesy AAP + przycięcie), dzięki czemu mapa może wypełnić ekran bez przycinania lub rozciągania. Auto używa rozmiaru odczytanego z ekranu motocykla (lub profilu). Ekrany z nietypowymi proporcjami (prawie kwadratowe, długi portret) skorzystają na tym ustawieniu; ekrany poziome nie będą miały żadnych marginesów i pozostają takie same.</string>
-    <string name="res_off">Brak</string>
+    <string name="res_off">Wyłączony</string>
     <string name="res_manual">Własne</string>
     <string name="res_panel_width">Szerokość panelu</string>
     <string name="res_panel_height">Wysokość panelu</string>
@@ -178,8 +181,8 @@
     <string name="main_check_for_update">Sprawdź dostępność aktualizacji</string>
     <string name="main_report_a_problem">Zgłoś problem</string>
     <string name="main_diagnostics">Diagnostyka</string>
-    <string name="main_share">Postaw kawę</string>
-    <string name="main_clear">Jasne</string>
+    <string name="main_share">Udostępnij</string>
+    <string name="main_clear">Wyczyść</string>
     <string name="qr_point_the_camera_at_the_bike_s_motoplay_qr_if_it">Skieruj aparat na kod QR aplikacji MotoPlay na motocyklu\n\nJeśli skanowanie nie powiedzie się, przełącz na kod QR w systemie iOS/CarPlay i spróbuj ponownie lub ręcznie wprowadź Wi-Fi (TRK).</string>
     <string name="qr_1x">1x</string>
     <string name="qr_2x">2x</string>
@@ -211,6 +214,10 @@
     <string name="setup_smoother">Wygłądzone</string>
     <string name="setup_balanced">Zrównoważone</string>
     <string name="setup_sharper">Wyostrzone</string>
+    <string name="setup_mirror_orientation">Układ ekranu (mirror)</string>
+    <string name="setup_mirror_orientation_desc">Podczas projekcji ekranu twojego telefonu, zablokuj telefon, aby wypełnić ekran motocykla. Opcja 'Dopasuj' używa ostatnio ustalonej orientaji ekranu motocykla (szeroki ekran TFT → oritnacja pozioma). Opcja 'Jak telefon' podąża za bieżącą orientacją ekranu telefonu.</string>    
+    <string name="setup_match_dash">Dopasuj</string>
+    <string name="setup_follow_phone">Jak telefon</string>
     <string name="setup_screen_fit">Dopasowanie ekranu</string>
     <string name="setup_fill_edge_to_edge_crops_a_little">Wypełnienie — od krawędzi do krawędzi (trochę przycięte)</string>
     <string name="setup_fill">Wypełnij</string>
@@ -268,6 +275,30 @@
     <string name="setup_when_a_paired_bike_s_wi_fi_is_in_range_start_pro">Gdy sieć Wi-Fi sparowanego motocyklu będzie w zasięgu, automatycznie rozpocznij projekcję.</string>
     <string name="setup_auto_recovery_watchdog">Watchdog automatycznego odzyskiwania</string>
     <string name="setup_if_the_dash_drops_or_projection_stalls_reconnect">Jeśli ekran motocykla się rozłączy lub projekcja się zatrzyma, podłącz ponownie automatycznie — nie trzeba robić rozłącz/połącz ponownie.</string>
+
+    <string name="setup_bluetooth_clock">Ustaw zegar ekranu poprzez Bluetooth (eksperymentalne)</string>
+    <string name="setup_bluetooth_clock_desc">Niektóre ekrany proszą o podanie czasu przez Bluetooth zamaist Wi-Fi, i ustawiają 00:00 gdy operacja się nie powiedzie. Najpier sparuj motocykl w ustawieniach Bluetooth w Androidzie. 'Wyłączony' domyślnie — apka poda czas tylko gdy ekran wyśle żądanie swoim protokołem.</string>
+    <string name="setup_clock_lab">Zegar (EKSPERYMENTALNE)</string>
+    <string name="setup_clock_lab_desc">One tester pack for every clock experiment — Wi‑Fi query/sync, Bluetooth listen (ZT / EC-BTP), stay-on-bike-Wi‑Fi. Defaults match Latest 2.0.13 (empty 0x10451, echo 0x10600, BLE off). Pick a combo, Connect once, Share Logs in Discord #clock-issue. Do not leave a combo on for daily riding.</string>
+    <string name="setup_clock_lab_bt">Nasłuch Bluetooth</string>
+    <string name="setup_clock_lab_presets">Wstępnie ustawienia (fill the knobs only)</string>
+    <string name="setup_clock_lab_preset_latest">Ostatnie</string>
+    <string name="setup_clock_lab_preset_2012">2.0.12</string>
+    <string name="setup_clock_lab_preset_zontes">Zontes OEM</string>
+    <string name="setup_clock_lab_preset_phone">Phone-sync</string>
+    <string name="setup_clock_lab_preset_bt">Nasłuch BT</string>
+    <string name="setup_clock_lab_query">0x10450 / QUERY_TIME</string>
+    <string name="setup_clock_lab_query_empty">Puste ack</string>
+    <string name="setup_clock_lab_query_carbit">Carbit JSON</string>
+    <string name="setup_clock_lab_query_zontes">Zontes OEM</string>
+    <string name="setup_clock_lab_query_none">Bez ack</string>
+    <string name="setup_clock_lab_timesync">0x10600 / TIME_SYNC</string>
+    <string name="setup_clock_lab_timesync_echo">Echo bike</string>
+    <string name="setup_clock_lab_timesync_phone">Phone local</string>
+    <string name="setup_keep_wifi">Pozostań podłączony do Wi-Fi motocykla po zatrzymaniu projekcji</string>
+    <string name="setup_keep_wifi_desc">Niektóre ekrany nie trzymają ustawień zegara gdy połączenie SoftAP / Wi-Fi Direct zostanie przerwane. Pozostawia telefon podłączony dopóki nie wyjdziesz z aplikacji lub wyłączysz Wi-Fi. Wyłączony - domyslnie.</string>
+    <string name="qr_from_photo">Importuj kod QR ze zdjęcia</string>
+    
     <string name="setup_log_trips_automatically">Rejestruj podróże automatycznie</string>
     <string name="setup_record_each_ride_s_route_and_stats_from_gps_whil">Rejestruj trasę każdej przejażdżki i statystyki z GPS podczas projekcji. Wyświetl je w sekcji Podróż ▸ Zapisane podróże.</string>
     <string name="setup_seamless_auto_resume">Automatyczne wznawianie</string>
@@ -295,6 +326,7 @@
     <string name="trip_avg_speed">Średnia prędkość</string>
     <string name="trip_speed_and_distance_come_from_the_phone_s_gps_the">Prędkość i dystans pochodzą z GPS w telefonie (motocykl nie udostępnia danych telemetrycznych przez streaming ekranu). Aby uzyskać najlepszą dokładność, utrzymuj widok na niebo.</string>
     <string name="trip_start">Start</string>
+    <string name="trip_pause">Pauza</string>
     <string name="trip_reset">Reset</string>
     <string name="trips_trips">Wycieczki</string>
     <string name="trips_previous_day">Poprzedni dzień</string>
