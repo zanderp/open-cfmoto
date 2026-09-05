@@ -653,4 +653,17 @@
     <string name="av_mode_relative">Relative increase (+ steps on current sound)</string>
     <string name="av_speed_label">%1$d km/h</string>
     <string name="av_save">Save Settings</string>
+
+    <string name="setup_cat_connection">Connection &amp; System</string>
+    <string name="setup_cat_connection_desc">Getting started, Wi‑Fi transport, backup, logs &amp; privacy.</string>
+    <string name="setup_cat_video">Screen &amp; Video</string>
+    <string name="setup_cat_video_desc">Quality, fit, power mode, resolution, DPI &amp; battery tuning.</string>
+    <string name="setup_cat_bike">Bike Profile</string>
+    <string name="setup_cat_bike_desc">Dash model / profile override and touch behaviour.</string>
+    <string name="setup_cat_handlebar">Handlebar &amp; Audio</string>
+    <string name="setup_cat_handlebar_desc">Button mapping, tap/hold timing, Auto Volume, Bluetooth.</string>
+    <string name="setup_cat_automation">Automation</string>
+    <string name="setup_cat_automation_desc">Auto-connect, recovery, clock lab &amp; startup behaviour.</string>
+    <string name="setup_cat_supported">Supported Bikes</string>
+    <string name="setup_cat_supported_desc">Reference list of dashes OpenCfMoto can connect to.</string>
 </resources>

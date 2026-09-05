@@ -612,4 +612,17 @@
     <string name="av_mode_relative">Относително усилване (+ стъпки към текущия звук)</string>
     <string name="av_speed_label">%1$d км/ч</string>
     <string name="av_save">Запази настройките</string>
+
+    <string name="setup_cat_connection">Свързване и система</string>
+    <string name="setup_cat_connection_desc">Първи стъпки, Wi‑Fi транспорт, бекъп, логове и поверителност.</string>
+    <string name="setup_cat_video">Екран и видео</string>
+    <string name="setup_cat_video_desc">Качество, вместване, режим на захранване, резолюция, DPI и батерия.</string>
+    <string name="setup_cat_bike">Профил на мотора</string>
+    <string name="setup_cat_bike_desc">Модел на таблото / профил и поведение на допира.</string>
+    <string name="setup_cat_handlebar">Кормило и звук</string>
+    <string name="setup_cat_handlebar_desc">Мапинг на бутони, време за тап/задържане, авт. звук, Bluetooth.</string>
+    <string name="setup_cat_automation">Автоматизация</string>
+    <string name="setup_cat_automation_desc">Авт. свързване, възстановяване, clock lab и поведение при старт.</string>
+    <string name="setup_cat_supported">Поддържани модели</string>
+    <string name="setup_cat_supported_desc">Справочен списък с табла, с които OpenCfMoto може да се свърже.</string>
 </resources>
