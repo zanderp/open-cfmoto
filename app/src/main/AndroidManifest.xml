@@ -117,6 +117,9 @@
             android:name=".ScreenMarginsActivity"
             android:exported="false" />
         <activity
+            android:name=".AutoVolumeActivity"
+            android:exported="false" />
+        <activity
             android:name=".CustomResolutionActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
