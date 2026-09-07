@@ -34,6 +34,8 @@ object AppSettings {
     private const val KEY_KEEP_WIFI = "keep_wifi_after_disconnect"
     private const val KEY_BT_TRIGGER_MAC = "bt_trigger_mac"
     private const val KEY_BT_TRIGGER_NAME = "bt_trigger_name"
+    private const val KEY_AUTO_VOLUME_ON = "auto_volume_on"
+    private const val KEY_AUTO_VOLUME_MODE = "auto_volume_mode"
 
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -148,6 +150,41 @@ object AppSettings {
             .putString(KEY_BT_TRIGGER_MAC, mac?.ifBlank { null })
             .putString(KEY_BT_TRIGGER_NAME, name?.ifBlank { null })
             .apply()
+    }
+
+    /** Automatic music-volume adjustment by GPS speed — see [AutoVolumeController]. */
+    fun autoVolumeOn(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_AUTO_VOLUME_ON, false)
+    fun setAutoVolumeOn(ctx: Context, on: Boolean) =
+        prefs(ctx).edit().putBoolean(KEY_AUTO_VOLUME_ON, on).apply()
+
+    fun autoVolumeMode(ctx: Context): Int = prefs(ctx).getInt(KEY_AUTO_VOLUME_MODE, 1) // Default to 1 (Relative)
+    fun setAutoVolumeMode(ctx: Context, mode: Int) =
+        prefs(ctx).edit().putInt(KEY_AUTO_VOLUME_MODE, mode).apply()
+
+    fun autoVolumeMaxSteps(ctx: Context): Int = prefs(ctx).getInt("auto_volume_max_steps", 15).coerceIn(5, 100)
+    fun setAutoVolumeMaxSteps(ctx: Context, max: Int) =
+        prefs(ctx).edit().putInt("auto_volume_max_steps", max.coerceIn(5, 100)).apply()
+
+    fun autoVolumePointsAbsolute(ctx: Context): List<Int> {
+        val raw = prefs(ctx).getString("auto_volume_points_abs", null)
+            ?: "4,5,6,7,8,8,9,9,10,10,11,12,13,14,15"
+        val list = raw.split(",").map { it.toIntOrNull() ?: 0 }
+        return if (list.size >= 15) list.take(15) else (list + List(15 - list.size) { 15 })
+    }
+
+    fun setAutoVolumePointsAbsolute(ctx: Context, points: List<Int>) {
+        prefs(ctx).edit().putString("auto_volume_points_abs", points.joinToString(",")).apply()
+    }
+
+    fun autoVolumePointsRelative(ctx: Context): List<Int> {
+        val raw = prefs(ctx).getString("auto_volume_points_rel", null)
+            ?: "0,0,1,1,2,2,3,3,4,4,5,5,6,7,8"
+        val list = raw.split(",").map { it.toIntOrNull() ?: 0 }
+        return if (list.size >= 15) list.take(15) else (list + List(15 - list.size) { 8 })
+    }
+
+    fun setAutoVolumePointsRelative(ctx: Context, points: List<Int>) {
+        prefs(ctx).edit().putString("auto_volume_points_rel", points.joinToString(",")).apply()
     }
 
     fun applyToHolder(ctx: Context) {

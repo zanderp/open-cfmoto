@@ -23,4 +23,10 @@
     <color name="status_busy">#FFB020</color>
     <color name="status_error">#FF5A52</color>
     <color name="status_idle">#8A93A3</color>
+
+    <!-- VU meter (Auto Volume equalizer rows) -->
+    <color name="vu_green">#10B981</color>
+    <color name="vu_orange">#F59E0B</color>
+    <color name="vu_red">#EF4444</color>
+    <color name="vu_track">#263040</color>
 </resources>

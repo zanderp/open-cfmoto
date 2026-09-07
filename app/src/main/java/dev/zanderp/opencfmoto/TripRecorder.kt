@@ -135,6 +135,8 @@ class TripRecorder(private val appContext: Context) : LocationListener {
         hasFix = true
         lastAccuracy = if (location.hasAccuracy()) location.accuracy.toInt() else 0
 
+        AutoVolumeController.onSpeedChanged(appContext, curSpeedKmh)
+
         points.add(TrackPoint(location.latitude, location.longitude, System.currentTimeMillis(), speedMs))
         lastFix = location
         lastFixAt = now
