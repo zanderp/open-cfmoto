@@ -4,8 +4,8 @@
 
 ### Wireless Android Auto on Carbit / EasyConnect dashes (CFMoto MotoPlay and siblings) — no root, no PC.
 
-**CFMoto** · **Voge** · **Moto Morini** · **Morbidelli** · **Zontes** · **Benelli** · **QJ Motor** ·
-**Rieju** · **UM** · **Wmoto** · **Longjia** · **GOES** / **Gladiator** · and other brands with a pairing QR
+**CFMoto** · **Zeeho** · **Voge** · **Moto Morini** · **Morbidelli** · **Zontes** · **Benelli** · **QJ Motor** ·
+**Rieju** · **UM** · **Wmoto** · **Murtas** · **Longjia** · **GOES** / **Gladiator** · and other brands with a pairing QR
 
 [Supported bikes](docs/SUPPORTED-BIKES.md) · [Dash showcase](docs/SHOWCASE.md) — real Android Auto photos from the community
 
@@ -39,7 +39,7 @@ dash touchscreen.
 
 ### 📸 See it on more bikes — [Dash showcase](docs/SHOWCASE.md)
 
-CFMoto · Voge · Morini · Morbidelli · QJ Motor · Rieju · UM · Wmoto · GOES and more — community photos of Android Auto on the dash.
+CFMoto · Zeeho · Voge · Morini · Morbidelli · QJ Motor · Rieju · UM · Wmoto · Murtas · GOES and more — community photos of Android Auto on the dash.
 
 </div>
 
@@ -95,8 +95,8 @@ CFMoto · Voge · Morini · Morbidelli · QJ Motor · Rieju · UM · Wmoto · GO
 
 ## 📋 What you need
 
-- **A bike / ATV whose dash can show a MotoPlay / EasyConnect QR** (CFMoto, Voge, Morini, Morbidelli,
-  Zontes, Benelli, QJ Motor, Rieju, UM, Wmoto, GOES/Gladiator, and siblings). **No T‑BOX required.**
+- **A bike / ATV whose dash can show a MotoPlay / EasyConnect QR** (CFMoto, Zeeho, Voge, Morini, Morbidelli,
+  Zontes, Benelli, QJ Motor, Rieju, UM, Wmoto, Murtas, GOES/Gladiator, and siblings). **No T‑BOX required.**
   Works on **US and international** units. See **[Supported bikes](docs/SUPPORTED-BIKES.md)** and
   **[Dash showcase](docs/SHOWCASE.md)**. Touch dashes use the screen; non‑touch / focus-mode bikes
   use **Controls** + handlebar buttons. Unknown dashes are learned after the first connect.
@@ -131,9 +131,9 @@ required. Latest ride build is **2.0.18**.
 
 **CFMoto**
 - **1000MT‑X** · **800MT‑X** · **800MT Explore** / Explore GT · **Ibex 800** (US)
-- **800NK** (US CRCP) · **800NK Advanced**
+- **800NK** (US CRCP) · **800NK Advanced** · **800NK Sport**
 - **675NK** · **450NK**
-- **675SR‑R** · **675SR** · **450SR** (+ SR‑S / TC) · **300SR** · **450SS** (some Canada units have no QR)
+- **675SR‑R** · **675SR** · **450SR** (+ SR‑S / TC) · **300SR** / **250SR** (same bike, regional name) · **500SR VOOM** (Indonesia 2026) · **450SS** (some Canada units have no QR)
 - **700MT** / Adventure · **450MT** / Ibex 450 (only if the pairing QR exists)
 - **450CL‑C** / CL‑C450 (often Wi‑Fi Direct — Setup → Auto or P2P)
 - **150SC** scooter
@@ -144,11 +144,13 @@ required. Latest ride build is **2.0.18**.
 - **Moto Morini** X-Cape **649** / **650** / **700** · **Seiemmezzo**
 - **Benelli** TRK 702 / 702X
 - **Rieju** 307
-- **Zontes** 125X · **350E** (use the Apple QR; force-stop Carbit)
+- **Zontes** 125X · **GK350** (Apple QR) · **350E** (Apple QR; force-stop Carbit) · **368E** · **703F** / 703RR
 - **Morbidelli** T1002V / VX · **T352X**
-- **QJ Motor** SRK800RR · SRK450RR · SRK250RD · **SRT 600** / **SRV600**
+- **QJ Motor** SRK800RR · SRK450RR · SRK250RD · **SRK 125 S** · **SRT 450RX** · **250 RS** · **SRT 600** / **SRV600** · **SRV 700**
 - **UM** DSR 250 Rally
 - **Wmoto** Griffin
+- **Zeeho** AE8 (CFMoto electric)
+- **Murtas** RRX (electric)
 
 ### In progress (joins or paints — not Latest daily)
 
@@ -171,7 +173,7 @@ build unless noted.
 | Family | Models |
 | --- | --- |
 | **Naked (NK)** | 125NK · 450NK · 675NK · 800NK · 800NK Advanced · 800NK Sport · 800NK (US CRCP) |
-| **Sport (SR)** | 300SR · 450SR · 450SR‑S · 450SR TC · 500SR VOOM · 675SR · 675SR‑R |
+| **Sport (SR)** | 250SR · 300SR · 450SR · 450SR‑S · 450SR TC · 500SR VOOM · 675SR · 675SR‑R |
 | **Touring / Adventure (MT)** | 450MT · 700MT · 700MT Adventure · 800MT‑X · 800MT Explore · 800MT Explore GT · 1000 MT‑X |
 | **Cruiser (CL)** | 450CL‑C · CL‑C450 |
 | **Scooter** | **150SC** |

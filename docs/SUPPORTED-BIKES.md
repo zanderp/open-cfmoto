@@ -24,7 +24,7 @@ Community reports welcome in [Discord](https://discord.gg/KNTjJhmFZ6) so we can 
 
 | | |
 | --- | --- |
-| **Confirmed** | **CFMoto** · **Voge** · **Zontes** · **Moto Morini** · **Morbidelli** · **QJ Motor** · **Benelli** · **Rieju** · **GOES** / **Gladiator** (CFORCE rebadges) · **UM** (DSR 250 Rally) |
+| **Confirmed** | **CFMoto** · **Zeeho** (AE8) · **Voge** · **Zontes** · **Moto Morini** · **Morbidelli** · **QJ Motor** · **Benelli** · **Rieju** · **GOES** / **Gladiator** (CFORCE rebadges) · **UM** (DSR 250 Rally) · **Wmoto** (Griffin) · **Murtas** (RRX) |
 | **Same Carbit / EasyConnect path — try Connect** | **Longjia** · other TFT dashes with a pairing QR |
 | **Experimental (SoftAP join only)** | **Kove** (Thinkerride SoftAP — phone AA may start; dash video not yet) |
 
@@ -45,6 +45,9 @@ Riders have projected Android Auto with these (US + international as noted):
 | **800MT‑X** / **1000MT‑X** | Portrait CFDL26; handlebar-primary by default |
 | **800NK** (US CRCP / sdk 0.9.23.x) | Non‑touch; dual PXC heartbeat |
 | **800NK Advanced** | Near-square touch (~720×712); use Screen margins for the MotoPlay pull-down |
+| **800NK Sport** | Community-confirmed (2026-09) — Nothing Phone 2, 2.0.13-pre |
+| **300SR** / **250SR** | **300SR** confirmed; **250SR** is the same bike under a regional name — pairing QR required |
+| **500SR VOOM** (2026, Indonesia) | Community-confirmed (2026-09) — Discord `#confirmed-working` |
 | **450SR** (+ SR‑S / TC class) | Non‑touch CFDL16; handlebar + on-screen pad |
 | **675SR‑R** | Community-confirmed (2026-08) — SoftAP / EasyConnect QR |
 | **450CL‑C** / **CL‑C450** | Often Wi‑Fi Direct (P2P) — Setup → Wi‑Fi **Auto** or **P2P**; Discord `#450cl-c` |
@@ -70,14 +73,24 @@ Riders have projected Android Auto with these (US + international as noted):
 | **Benelli TRK 702 / 702X** | Manual SSID/pwd or QR when shown; grant Nearby devices / Bluetooth for AA |
 | **Rieju 307** | Community-confirmed (2026-08) — Connect + AA on dash; try Fit/Stretch if letterboxed — Discord `#rieju-307` |
 | **Zontes 125X** | Community-confirmed (2026-08) — Carbit / EasyConnect QR |
+| **Zontes GK350** (2022) | Community-confirmed (2026-08) — Apple QR (MOD on the pairing screen); Android QR often fails — Discord `#zontes-other` + `#configs-showcase` |
+| **Zontes 368E** | Community-confirmed (2026-09) — Latest; different firmware from 2025 **368G v1** (QR-stuck) |
+| **Zontes 703F** (MY 2026) | Community-confirmed (2026-09) — Latest; same TFT family as **703RR**; non-touch (handlebars) |
 | **Zontes** (other TFT + pairing QR) | Same Carbit / EasyConnect path — try Connect; report logs in Discord |
 | **Morbidelli T1002VX** | Community-confirmed (Argentina) — Carbit / EasyConnect QR |
 | **Morbidelli T352X** | Community-confirmed (2026-08) — AA split on Carbit dash — Discord `#t352x` |
 | **UM DSR 250 Rally** (2026) | Community-confirmed (Nicaragua, 2026-08) — Carbit / EasyConnect QR |
+| **Wmoto Griffin** | Community-confirmed — Carbit / EasyConnect QR; clock = Latest empty+echo |
+| **Zeeho AE8** | Community-confirmed (2026-09) — CFMoto electric; Carbit / EasyConnect QR — Discord `#other-other` |
+| **Murtas RRX** | Community-confirmed (2026-08) — electric; Carbit QR (`channel=37512`); non-touch; clock hour can be wrong on Latest — Discord `#confirmed-working` |
 | **QJ Motor SRK800RR** (2025) | Community-confirmed — iOS QR; AA + media OK; handlebar→AA needs bike Bluetooth + Controls ON |
+| **QJ Motor SRK 125 S** | Community-confirmed (2026-09) — Discord `#qj-other` |
+| **QJ Motor SRT 450RX** | Community-confirmed (2026-09) — Discord `#confirmed-working` |
+| **QJ Motor 250 RS** | Community-confirmed (2026-09) — Discord `#turkce` |
 | **QJ Motor SRK250RD** (2026) | Community-confirmed — AA works; dash uses half-screen layout (unlike 800RR); buttons untested |
 | **QJ Motor SRK450RR** (2026) | Community-confirmed — AA works; dash uses half-screen layout (unlike 800RR); buttons untested |
 | **QJ Motor SRT 600** / **SRV600** | Community-confirmed (2026-08) — AA on dash (HW `SS655-L7` class); tune margins/fit for rounded panels |
+| **QJ Motor SRV 700** | Community-confirmed (2026-09) — Latest, Poco X8 Pro Max — Discord `#confirmed-working` |
 | **QJ Motor 600SX / 550SX** (2026) | In progress — QR works (`qj-5G-*`, modelId 37501); use Setup → Wi‑Fi **AP** if Auto mis-picks P2P; clock reset → retest **2.0.10** (echo bike stamp) |
 
 ---
@@ -92,14 +105,17 @@ promote models to “confirmed.”
 | Brand | Notes / examples |
 | --- | --- |
 | **Voge** | **DS800 Rally** + **DS900X** confirmed; other EasyConnect TFT models welcome |
-| **Zontes** | **125X confirmed**; other TFT dashes with pairing QR welcome |
+| **Zontes** | **125X**, **GK350**, **368E**, **703F** confirmed; **368G 2025 v1** often stays on the pairing QR; other TFT dashes with pairing QR welcome |
 | **Moto Morini** | **X-Cape 649 / 700** and **Seiemmezzo** (incl. 2026) confirmed; **1200** SoftAP joins (keep MotoFun/pairing QR open — EasyConn may not sit on `:10930`). Pairing QR may be `admin.motomorini.com/…?Wifi=SSID#password#mac&MachineID=…&ProductID=…` — supported. Do **not** scan the vehicle info QR (`code:…color:…`). Dash clock jumping hours / **1970** after connect: **2.0.10** echoes the bike stamp unless it is epoch (log `HU_TIME_SYNC … mode=echo|phone`). |
 | **Benelli** | TRK 702 / 702X class — SoftAP SSID/password or QR when shown; grant **Nearby devices / Bluetooth** |
 | **Rieju** | **307 confirmed**; other EasyConnect TFTs welcome (`#rieju-307`) |
-| **QJ Motor** | **SRK800RR 2025**, **SRK250RD / SRK450RR 2026**, **SRT/SRV 600** confirmed; **600SX / 550SX (2026) testing**; Fort 4.0 and other EasyConnect TFTs |
+| **QJ Motor** | **SRK800RR 2025**, **SRK250RD / SRK450RR 2026**, **SRK 125 S**, **SRT 450RX**, **250 RS**, **SRT/SRV 600**, **SRV 700** confirmed; **600SX / 550SX (2026) testing**; Fort 4.0 still unconfirmed |
 | **Morbidelli** (formerly MBP) | **T1002VX** + **T352X** confirmed; other Carbit dashes welcome |
 | **Longjia** | e.g. **V-Bob 650** — Europe often uses **MotoFUN** / **Carbit Ride**. Unconfirmed; try Connect (or Mirror) if the dash shows a pairing QR. Close the official companion app first so it does not hold the link ports. |
 | **UM** | **DSR 250 Rally 2026** confirmed (Nicaragua) — same Carbit / EasyConnect QR path |
+| **Wmoto** | **Griffin** confirmed — Carbit / EasyConnect QR; clock = Latest empty+echo |
+| **Zeeho** | **AE8** confirmed (CFMoto electric brand) — same Carbit / EasyConnect QR path |
+| **Murtas** | **RRX** confirmed (electric) — Carbit QR; handlebars / non-touch; clock hour may stay wrong on Latest |
 
 ### Experimental — not Carbit (Thinkerride)
 
