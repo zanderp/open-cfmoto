@@ -457,6 +457,7 @@
     <string name="trip_start">Start</string>
     <string name="trip_pause">Pause</string>
     <string name="trip_reset">Reset</string>
+    <string name="trips_loading">Loading trips…</string>
     <string name="trips_trips">Trips</string>
     <string name="trips_previous_day">Previous day</string>
     <string name="trips_str">‹</string>
@@ -637,4 +638,13 @@
     <string name="setup_anonymous_telemetry_on">On — anonymous pings &amp; crash reports</string>
     <string name="setup_anonymous_telemetry_off">Off — nothing uploaded</string>
     <string name="setup_anonymous_id">Anonymous id: %1$s</string>
+
+    <!-- Calendar View Strings -->
+    <string name="trips_calendar_no_rides">No rides in this period</string>
+    <string name="trips_calendar_last_trip">Your last trip was recorded on %1$s</string>
+
+    <plurals name="trips_calendar_stats">
+        <item quantity="one">%1$d RIDE · %2$.1f km · %3$d:%4$02d h</item>
+        <item quantity="other">%1$d RIDES · %2$.1f km · %3$d:%4$02d h</item>
+    </plurals>
 </resources>

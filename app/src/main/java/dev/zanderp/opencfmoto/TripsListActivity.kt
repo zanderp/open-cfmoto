@@ -15,8 +15,10 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
@@ -36,6 +38,8 @@ import java.util.Locale
  */
 class TripsListActivity : AppCompatActivity() {
 
+    private lateinit var calendarComposeView: ComposeView
+    private var isCalendarVisible = true
     private lateinit var container: LinearLayout
     private lateinit var empty: TextView
     private lateinit var dayLabel: TextView
@@ -46,48 +50,120 @@ class TripsListActivity : AppCompatActivity() {
     private var dayStartMs: Long = 0L
     private var allTrips: List<Trip> = emptyList()
     private var didInitialDayPick = false
+    private var isLoadingTrips = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_trips)
+
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.trips_root)) { v, insets ->
             val b = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(b.left, b.top, b.right, b.bottom)
             insets
         }
+
         container = findViewById(R.id.trips_container)
         empty = findViewById(R.id.trips_empty)
         dayLabel = findViewById(R.id.trips_day_label)
         daySummary = findViewById(R.id.trips_day_summary)
         todayBtn = findViewById(R.id.trips_today)
 
-        findViewById<MaterialButton>(R.id.trips_day_prev).setOnClickListener {
-            shiftDay(-1)
-        }
-        findViewById<MaterialButton>(R.id.trips_day_next).setOnClickListener {
-            shiftDay(1)
-        }
+        val prevBtn = findViewById<MaterialButton>(R.id.trips_day_prev)
+        val nextBtn = findViewById<MaterialButton>(R.id.trips_day_next)
+
+        prevBtn.setOnClickListener { shiftDay(-1) }
+        nextBtn.setOnClickListener { shiftDay(1) }
         todayBtn.setOnClickListener {
             dayStartMs = startOfDay(System.currentTimeMillis())
             renderDay()
+            refreshComposeCalendar()
         }
 
         dayStartMs = startOfDay(System.currentTimeMillis())
+        calendarComposeView = findViewById(R.id.calendar_compose_view)
+
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (!isCalendarVisible) {
+                    toggleViewMode(showCalendar = true)
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+
+        toggleViewMode(showCalendar = true)
+    }
+
+    private fun loadTripsAsync() {
+        if (isLoadingTrips) return
+        isLoadingTrips = true
+        refreshComposeCalendar() // Trigger compose to show the loading spinner
+
+        Thread {
+            val trips = TripStore.list(this@TripsListActivity)
+            runOnUiThread {
+                allTrips = trips
+                isLoadingTrips = false
+
+                if (!didInitialDayPick) {
+                    didInitialDayPick = true
+                    val today = startOfDay(System.currentTimeMillis())
+                    if (allTrips.none { startOfDay(it.start) == today }) {
+                        allTrips.firstOrNull()?.let { dayStartMs = startOfDay(it.start) }
+                    }
+                }
+                renderDay()
+                refreshComposeCalendar()
+            }
+        }.start()
+    }
+
+    private fun refreshComposeCalendar() {
+        calendarComposeView.setContent {
+            TripCalendarView(
+                trips = allTrips,
+                selectedDayMs = dayStartMs,
+                isLoading = isLoadingTrips,
+                onDaySelected = { newDayMs ->
+                    dayStartMs = newDayMs
+                    toggleViewMode(showCalendar = false)
+                }
+            )
+        }
+    }
+
+    private fun toggleViewMode(showCalendar: Boolean) {
+        isCalendarVisible = showCalendar
+
+        if (showCalendar) {
+            calendarComposeView.visibility = View.VISIBLE
+
+            findViewById<MaterialButton>(R.id.trips_day_prev).visibility = View.GONE
+            findViewById<MaterialButton>(R.id.trips_day_next).visibility = View.GONE
+            dayLabel.visibility = View.GONE
+            daySummary.visibility = View.GONE
+            todayBtn.visibility = View.GONE
+            container.visibility = View.GONE
+            empty.visibility = View.GONE
+        } else {
+            calendarComposeView.visibility = View.GONE
+
+            findViewById<MaterialButton>(R.id.trips_day_prev).visibility = View.VISIBLE
+            findViewById<MaterialButton>(R.id.trips_day_next).visibility = View.VISIBLE
+            dayLabel.visibility = View.VISIBLE
+            daySummary.visibility = View.VISIBLE
+            container.visibility = View.VISIBLE
+
+            renderDay()
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        allTrips = TripStore.list(this)
-        // First open: if today has no rides, land on the most recent ride day.
-        if (!didInitialDayPick) {
-            didInitialDayPick = true
-            val today = startOfDay(System.currentTimeMillis())
-            if (allTrips.none { startOfDay(it.start) == today }) {
-                allTrips.firstOrNull()?.let { dayStartMs = startOfDay(it.start) }
-            }
-        }
-        renderDay()
+        loadTripsAsync()
     }
 
     private fun shiftDay(delta: Int) {
@@ -95,9 +171,12 @@ class TripsListActivity : AppCompatActivity() {
         cal.add(Calendar.DAY_OF_YEAR, delta)
         dayStartMs = startOfDay(cal.timeInMillis)
         renderDay()
+        refreshComposeCalendar()
     }
 
     private fun renderDay() {
+        if (isCalendarVisible) return
+
         container.removeAllViews()
         val dayEnd = dayStartMs + 24L * 60L * 60L * 1000L
         val dayTrips = allTrips.filter { it.start in dayStartMs until dayEnd }
@@ -266,8 +345,7 @@ class TripsListActivity : AppCompatActivity() {
             .setMessage("${trip.dateText()} · ${trip.distanceText()}")
             .setPositiveButton(R.string.trips_delete) { _, _ ->
                 TripStore.delete(this, trip.id)
-                allTrips = TripStore.list(this)
-                renderDay()
+                loadTripsAsync() // Reload to reflect deletion
             }
             .setNegativeButton(R.string.dash_cancel, null)
             .show()

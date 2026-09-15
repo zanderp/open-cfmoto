@@ -215,7 +215,7 @@
     <string name="setup_balanced">Zrównoważone</string>
     <string name="setup_sharper">Wyostrzone</string>
     <string name="setup_mirror_orientation">Układ ekranu (mirror)</string>
-    <string name="setup_mirror_orientation_desc">Podczas projekcji ekranu twojego telefonu, zablokuj telefon, aby wypełnić ekran motocykla. Opcja \'Dopasuj\' używa ostatnio ustalonej orientaji ekranu motocykla (szeroki ekran TFT → oritnacja pozioma). Opcja \'Jak telefon\' podąża za bieżącą orientacją ekranu telefonu.</string>    
+    <string name="setup_mirror_orientation_desc">Podczas projekcji ekranu twojego telefonu, zablokuj telefon, aby wypełnić ekran motocykla. Opcja \'Dopasuj\' używa ostatnio ustalonej orientaji ekranu motocykla (szeroki ekran TFT → oritnacja pozioma). Opcja \'Jak telefon\' podąża za bieżącą orientacją ekranu telefonu.</string>
     <string name="setup_match_dash">Dopasuj</string>
     <string name="setup_follow_phone">Jak telefon</string>
     <string name="setup_screen_fit">Dopasowanie ekranu</string>
@@ -333,6 +333,7 @@
     <string name="trips_next_day">Następny dzień</string>
     <string name="trips_today">Dzisiaj</string>
     <string name="trips_no_rides_this_day">Brak wycieczek tego dnia.</string>
+    <string name="trips_loading">Wczytuję podróże…</string>
     <string name="dashset_settings">Ustawienia</string>
     <string name="dashset_theme">Motyw</string>
     <string name="dashset_next_stop">Następny przystanek</string>

@@ -21,7 +21,7 @@
             android:layout_height="26dp"
             android:contentDescription="@string/trips_trips"
             android:src="@drawable/ic_speed"
-            android:tint="@color/brand_orange" />
+            app:tint="@color/brand_orange" />
 
         <TextView
             android:layout_width="0dp"
@@ -33,6 +33,12 @@
             android:textSize="20sp"
             android:textStyle="bold" />
     </LinearLayout>
+
+    <!-- Trip Calendar view -->
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/calendar_compose_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
 
     <!-- Day navigator (calendar-style). -->
     <LinearLayout
