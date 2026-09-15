@@ -13,6 +13,11 @@ QR code, OpenCfMoto can try to connect. No QR → this app cannot join that dash
 Stock Carbit Ride / brand companion apps (MotoFun, etc.) are separate. OpenCfMoto uses the same QR
 path to project **wireless Android Auto** (not Apple CarPlay).
 
+**Android Auto 17.4+:** OpenCfMoto still works. Google blocked the automatic start — after Connect,
+open AA settings → tap **Version** ~10× (first time) → ⋮ → **Start head unit server**. Repeat the
+⋮ step after a reboot or an AA update. Do not uninstall Android Auto updates. Full steps:
+[README — Android Auto setup](../README.md#3-android-auto-setup).
+
 Community reports welcome in [Discord](https://discord.gg/KNTjJhmFZ6) so we can keep this list current.
 
 ### Brands (supported & welcome)

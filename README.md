@@ -5,7 +5,7 @@
 ### Wireless Android Auto on Carbit / EasyConnect dashes (CFMoto MotoPlay and siblings) — no root, no PC.
 
 **CFMoto** · **Voge** · **Moto Morini** · **Morbidelli** · **Zontes** · **Benelli** · **QJ Motor** ·
-**Longjia** · **GOES** / **Gladiator** · and other brands with a MotoPlay / EasyConnect pairing QR
+**Rieju** · **UM** · **Wmoto** · **Longjia** · **GOES** / **Gladiator** · and other brands with a pairing QR
 
 [Supported bikes](docs/SUPPORTED-BIKES.md) · [Dash showcase](docs/SHOWCASE.md) — real Android Auto photos from the community
 
@@ -39,7 +39,7 @@ dash touchscreen.
 
 ### 📸 See it on more bikes — [Dash showcase](docs/SHOWCASE.md)
 
-CFMoto · Voge · Morini · Morbidelli · QJ Motor · GOES and more — community photos of Android Auto on the dash.
+CFMoto · Voge · Morini · Morbidelli · QJ Motor · Rieju · UM · Wmoto · GOES and more — community photos of Android Auto on the dash.
 
 </div>
 
@@ -50,6 +50,16 @@ CFMoto · Voge · Morini · Morbidelli · QJ Motor · GOES and more — communit
 > US and international. Full model list: **[Supported bikes](docs/SUPPORTED-BIKES.md)** · see it on
 > real dashes: **[Dash showcase](docs/SHOWCASE.md)**. Don't rely on it for critical navigation —
 > set your route **before** you ride. Use at your own risk.
+
+> 📣 **Google updated Android Auto (17.4+). OpenCfMoto still works.** Google blocked the automatic
+> start — that is not an app break. After **Connect**:
+> 1. Setup → Android Auto → open AA settings.
+> 2. Tap **Version** ~10 times (first time only) → top-right **⋮** → **Start head unit server**.
+> 3. Leave that notification on. After a phone reboot or an Android Auto update, open the **⋮**
+>    menu again and start the server (no need to tap Version again).
+>
+> Do **not** uninstall Android Auto updates and do **not** downgrade Android Auto.
+> Full steps: [Android Auto setup](#3-android-auto-setup).
 
 ---
 
@@ -86,8 +96,8 @@ CFMoto · Voge · Morini · Morbidelli · QJ Motor · GOES and more — communit
 ## 📋 What you need
 
 - **A bike / ATV whose dash can show a MotoPlay / EasyConnect QR** (CFMoto, Voge, Morini, Morbidelli,
-  Zontes, Benelli, QJ Motor, GOES/Gladiator, and siblings). **No T‑BOX required.** Works on **US and
-  international** units. See **[Supported bikes](docs/SUPPORTED-BIKES.md)** and
+  Zontes, Benelli, QJ Motor, Rieju, UM, Wmoto, GOES/Gladiator, and siblings). **No T‑BOX required.**
+  Works on **US and international** units. See **[Supported bikes](docs/SUPPORTED-BIKES.md)** and
   **[Dash showcase](docs/SHOWCASE.md)**. Touch dashes use the screen; non‑touch / focus-mode bikes
   use **Controls** + handlebar buttons. Unknown dashes are learned after the first connect.
 - **An Android phone**, Android **10 or newer**.
@@ -116,23 +126,45 @@ required. US CRCP and international dashes both work. OpenCfMoto projects **wire
 
 ### Confirmed with OpenCfMoto
 
-**CFMoto:** 800MT (MT‑X / Explore / Explore GT / **Ibex 800**) · 1000 MT‑X · 800NK (US CRCP) · 800NK Advanced ·
-**675NK** · **675SR‑R** · **700MT Adventure** · **450MT** · 450SR (+ SR‑S / TC) · 450CL‑C / CL‑C450 · **450NK** ·
-**150SC** scooter · **CFORCE 850 / 1000** · **GOES Terrox 1000** / **Gladiator G3 1000** (CFORCE rebadges)
+Community-confirmed Android Auto on the dash (Discord `#confirmed-working` + brand rooms). Pairing QR
+required. Latest ride build is **2.0.18**.
 
-**Other brands:** **Voge DS800 Rally / DS900X** · **Moto Morini X-Cape 649 / 700 / Seiemmezzo** ·
-**Benelli TRK 702 / 702X** · **Rieju 307** · **Zontes 125X** · **Morbidelli T1002VX / T352X** ·
-**QJ Motor SRK800RR / SRK450RR / SRK250RD / SRT 600 / SRV600**
+**CFMoto**
+- **1000MT‑X** · **800MT‑X** · **800MT Explore** / Explore GT · **Ibex 800** (US)
+- **800NK** (US CRCP) · **800NK Advanced**
+- **675NK** · **450NK**
+- **675SR‑R** · **675SR** · **450SR** (+ SR‑S / TC) · **300SR** · **450SS** (some Canada units have no QR)
+- **700MT** / Adventure · **450MT** / Ibex 450 (only if the pairing QR exists)
+- **450CL‑C** / CL‑C450 (often Wi‑Fi Direct — Setup → Auto or P2P)
+- **150SC** scooter
+- **CFORCE 850 / 1000** · **GOES Terrox 1000** / **Gladiator G3 1000** (CFORCE rebadges)
 
-### Other brands (Carbit / EasyConnect)
+**Other brands**
+- **Voge** DS800 Rally / Valico · **DS900X** / 900 DSX
+- **Moto Morini** X-Cape **649** / **650** / **700** · **Seiemmezzo**
+- **Benelli** TRK 702 / 702X
+- **Rieju** 307
+- **Zontes** 125X · **350E** (use the Apple QR; force-stop Carbit)
+- **Morbidelli** T1002V / VX · **T352X**
+- **QJ Motor** SRK800RR · SRK450RR · SRK250RD · **SRT 600** / **SRV600**
+- **UM** DSR 250 Rally
+- **Wmoto** Griffin
 
-Try Connect when the dash shows a pairing QR; report results in Discord:
+### In progress (joins or paints — not Latest daily)
 
-**Voge** (DS800 Rally / DS900X confirmed) · **Moto Morini** (X-Cape 649 / 700 / Seiemmezzo confirmed; 1200 SoftAP
-experimental; MotoFun) · **Zontes** (**125X** confirmed) · **Benelli** (e.g. TRK 702 / 702X) · **Rieju** (**307** confirmed) ·
-**QJ Motor** (**SRK800RR / SRK450RR / SRK250RD / SRT 600 / SRV600** confirmed; 550/600SX + Fort 4.0 testing) ·
-**Morbidelli** / MBP (**T1002VX / T352X** confirmed) · **Longjia** (e.g. V-Bob 650; MotoFUN / Carbit Ride —
-unconfirmed, try if QR present) · **Kove** (Thinkerride SoftAP experimental — no dash video yet)
+These already show *something* (SoftAP join, phone AA, frames, or stills). Not the everyday Latest
+build unless noted.
+
+| Model | What works today |
+| --- | --- |
+| **Moto Morini X-Cape 1200** | SoftAP / Yunmo joins. TFT **stills** only on **2.0.14-pre** (Setup → profile **X-Cape 1200**). Not in 2.0.13 / 2.0.18. |
+| **Kove 800X Pro** | Thinkerride SoftAP — phone Android Auto can start. **No dash video** yet. |
+| **Zontes 368G (2025)** | Handshake + video frames; TFT often **keeps the pairing QR**. 2026 units reported OK. |
+| **QJ Motor 550SX / 600SX** | QR works (`qj-5G-*`). Prefer Setup → Wi‑Fi **AP**. Clock = Latest empty+echo. |
+
+**Also try Connect** if the dash shows a pairing QR: other **Zontes** / **Voge** / **QJ Fort 4.0** /
+**Longjia** (e.g. V-Bob 650 — close the official app first). Report in
+[Discord](https://discord.gg/KNTjJhmFZ6).
 
 ### Full CFMoto list (summary)
 
@@ -167,6 +199,10 @@ The app isn't on the Play Store — you sideload the APK.
 1. Download the latest **`OpenCfMoto.apk`** from the
    **[Releases page](https://github.com/zanderp/open-cfmoto/releases/latest)**
    (direct link: <https://github.com/zanderp/open-cfmoto/releases/latest/download/OpenCfMoto.apk>).
+   If Android says the package is **not compatible** (32-bit Android — e.g. Galaxy A13 5G /
+   SM-A136B), use
+   [OpenCfMoto.armv7.apk](https://github.com/zanderp/open-cfmoto/releases/latest/download/OpenCfMoto.armv7.apk)
+   instead. Most phones from the last few years want the default 64-bit APK.
 2. Tap it in a file manager / your browser downloads to install; allow installation from your
    browser/file manager when Android prompts about "unknown sources".
 3. Open **OpenCfMoto** once and grant the permissions it requests:
@@ -181,6 +217,9 @@ The app isn't on the Play Store — you sideload the APK.
 ### 3. Android Auto setup
 
 Android Auto must be installed and allowed to start in "self / head-unit" mode.
+
+**If Maps never appears after Connect, this is almost always the missing step** — not a broken
+OpenCfMoto install. Google’s 17.4+ update blocked the automatic start.
 
 1. Install **Android Auto** from the Play Store (often pre-installed) and open it once to accept its
    terms.
@@ -635,6 +674,7 @@ OpenCfMoto routes and **Connect** for Maps/Waze Android Auto.
 | Dash stays **black** after connecting | Tap **Stop**, then **Connect** / **Scan bike** again. Make sure the dash is on its phone-connection screen. |
 | **No Wi‑Fi dialog** appears | Confirm the Location permission is granted; move the phone next to the bike; tap **Stop** and retry. Some phones show the dialog behind Android Auto — swipe back to OpenCfMoto. |
 | **Android Auto never starts** | On AA 17.4+: open Android Auto → tap Version 10× → ⋮ → **Start head unit server**, then Connect. Also re-check [step 3](#3-android-auto-setup) (developer mode + unknown sources). Do **not** uninstall Android Auto updates. |
+| Install says **not compatible** with this phone | Default Latest is **64-bit only**. Use [OpenCfMoto.armv7.apk](https://github.com/zanderp/open-cfmoto/releases/latest/download/OpenCfMoto.armv7.apk) on 32-bit Android (Galaxy A13 5G / SM-A136B and similar). |
 | **Auto-connect doesn't fire** | Ensure *Auto-connect* is On, the bike is paired, and its Wi‑Fi is in range; open the app or return to it to retry. |
 | Picture is **stretched / letterboxed** on an unknown bike | Reconnect once so it learns the dash shape, or set the orientation/size manually in Setup. |
 | Dash **froze** and didn't recover | With *Auto-recovery* on it should reconnect itself; otherwise tap **Stop** then **Connect**. |
