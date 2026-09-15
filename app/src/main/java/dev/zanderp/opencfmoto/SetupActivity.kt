@@ -8,8 +8,10 @@ import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.view.View
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -50,6 +52,18 @@ class SetupActivity : AppCompatActivity() {
     private lateinit var btStatus: TextView
     private lateinit var resumeBtn: MaterialButton
 
+    private lateinit var scrollRoot: View
+    private lateinit var setupHub: View
+    private lateinit var sectionConnection: View
+    private lateinit var sectionVideo: View
+    private lateinit var sectionBike: View
+    private lateinit var sectionHandlebar: View
+    private lateinit var sectionAutomation: View
+    private lateinit var sectionSupported: View
+    private lateinit var btnBack: View
+    private lateinit var mainTitle: TextView
+    private lateinit var mainDesc: TextView
+
     private val importSettingsLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -87,6 +101,50 @@ class SetupActivity : AppCompatActivity() {
         profileDesc = findViewById(R.id.profile_desc)
         btStatus = findViewById(R.id.bt_status)
         resumeBtn = findViewById(R.id.resume_perm_btn)
+
+        scrollRoot = findViewById(R.id.setup_root)
+        setupHub = findViewById(R.id.layout_setup_hub)
+        sectionConnection = findViewById(R.id.section_connection)
+        sectionVideo = findViewById(R.id.section_video)
+        sectionBike = findViewById(R.id.section_bike)
+        sectionHandlebar = findViewById(R.id.section_handlebar)
+        sectionAutomation = findViewById(R.id.section_automation)
+        sectionSupported = findViewById(R.id.section_supported)
+        btnBack = findViewById(R.id.btn_setup_back)
+        mainTitle = findViewById(R.id.setup_main_title)
+        mainDesc = findViewById(R.id.setup_main_desc)
+
+        btnBack.setOnClickListener { showHub() }
+
+        findViewById<View>(R.id.card_hub_connection).setOnClickListener {
+            showCategory(sectionConnection, R.string.setup_cat_connection, R.string.setup_cat_connection_desc)
+        }
+        findViewById<View>(R.id.card_hub_video).setOnClickListener {
+            showCategory(sectionVideo, R.string.setup_cat_video, R.string.setup_cat_video_desc)
+        }
+        findViewById<View>(R.id.card_hub_bike).setOnClickListener {
+            showCategory(sectionBike, R.string.setup_cat_bike, R.string.setup_cat_bike_desc)
+        }
+        findViewById<View>(R.id.card_hub_handlebar).setOnClickListener {
+            showCategory(sectionHandlebar, R.string.setup_cat_handlebar, R.string.setup_cat_handlebar_desc)
+        }
+        findViewById<View>(R.id.card_hub_automation).setOnClickListener {
+            showCategory(sectionAutomation, R.string.setup_cat_automation, R.string.setup_cat_automation_desc)
+        }
+        findViewById<View>(R.id.card_hub_supported).setOnClickListener {
+            showCategory(sectionSupported, R.string.setup_cat_supported, R.string.setup_cat_supported_desc)
+        }
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (setupHub.visibility != View.VISIBLE) {
+                    showHub()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
 
         step1Btn.setOnClickListener { openAndroidAuto() }
         step2Btn.setOnClickListener { requestMissingPermissions() }
@@ -196,6 +254,7 @@ class SetupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.profile_clc450).setOnClickListener { setProfileOverride(ProfileOverride.CLC450) }
         findViewById<MaterialButton>(R.id.btn_screen_margins).setOnClickListener { ScreenMarginsActivity.start(this) }
         findViewById<MaterialButton>(R.id.btn_custom_resolution).setOnClickListener { CustomResolutionActivity.start(this) }
+        findViewById<MaterialButton>(R.id.btn_auto_volume).setOnClickListener { AutoVolumeActivity.start(this) }
         findViewById<MaterialButton>(R.id.transport_auto).setOnClickListener { setTransport(WifiTransport.AUTO) }
         findViewById<MaterialButton>(R.id.transport_ap).setOnClickListener { setTransport(WifiTransport.AP) }
         findViewById<MaterialButton>(R.id.transport_p2p).setOnClickListener { setTransport(WifiTransport.P2P) }
@@ -214,6 +273,37 @@ class SetupActivity : AppCompatActivity() {
             markSeen(this)
             finish()
         }
+    }
+
+    private fun showCategory(section: View, titleRes: Int, descRes: Int) {
+        setupHub.visibility = View.GONE
+        sectionConnection.visibility = View.GONE
+        sectionVideo.visibility = View.GONE
+        sectionBike.visibility = View.GONE
+        sectionHandlebar.visibility = View.GONE
+        sectionAutomation.visibility = View.GONE
+        sectionSupported.visibility = View.GONE
+
+        section.visibility = View.VISIBLE
+        btnBack.visibility = View.VISIBLE
+        mainTitle.setText(titleRes)
+        mainDesc.setText(descRes)
+        scrollRoot.scrollTo(0, 0)
+    }
+
+    private fun showHub() {
+        setupHub.visibility = View.VISIBLE
+        sectionConnection.visibility = View.GONE
+        sectionVideo.visibility = View.GONE
+        sectionBike.visibility = View.GONE
+        sectionHandlebar.visibility = View.GONE
+        sectionAutomation.visibility = View.GONE
+        sectionSupported.visibility = View.GONE
+
+        btnBack.visibility = View.GONE
+        mainTitle.setText(R.string.setup_setup_settings)
+        mainDesc.setText(R.string.setup_a_one_time_setup_so_android_auto_can_project_to_)
+        scrollRoot.scrollTo(0, 0)
     }
 
     /** Write the portable settings JSON and open the system share sheet (Discord, Drive, …). */
