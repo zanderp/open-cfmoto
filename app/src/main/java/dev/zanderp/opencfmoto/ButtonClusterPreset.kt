@@ -28,7 +28,7 @@ enum class ButtonClusterPreset(
     val instantSingles: Boolean,
     /**
      * When false, two separate ◀/▲ or ▶/▼ taps never upgrade to ×2 — only a coalesced volume jump
-     * does. For pods where ×2 is mapped to Back/Home, so quick scrolling can't throw the rider out.
+     * does. Fast scrolling then stays scrolling instead of firing a mapped Back / Home.
      */
     val navTapDoubles: Boolean = true,
 ) {
@@ -50,9 +50,16 @@ enum class ButtonClusterPreset(
     BACK_SET(
         id = "back_set",
         title = "BACK / SET diamond (limited)",
-        summary = "▲/▼ = knob · SET = Select · ▲ then ▼ quickly = Home (app list) · " +
-            "▼ then ▲ quickly = Back. Fast ▲▲ / ▼▼ scrolling stays scrolling; only a hard " +
-            "coalesced volume flick still counts as ×2.",
+        summary = "Snappy singles (no double-tap wait). Discrete hold / Select ×2 usually don't " +
+            "exist — but a hard ▲▲ / ▼▼ volume flick often coalesces into ×2 → Back / Home. " +
+            "On-screen pad covers anything else.",
+        instantSingles = true,
+    ),
+    BACK_SET_COMBO(
+        id = "back_set_combo",
+        title = "BACK / SET diamond + combos",
+        summary = "▲/▼ = knob · SET = Select · ▲ then ▼ quickly = Back · ▼ then ▲ quickly = Home " +
+            "(app list). Fast ▲▲ / ▼▼ stays scrolling. Not triggering? Raise Setup → Double-tap delay.",
         instantSingles = true,
         navTapDoubles = false,
     );
@@ -76,9 +83,12 @@ enum class ButtonClusterPreset(
             // Discrete ×2 (if the dash ever sends it) also maps here via eager second-tap.
             ButtonGesture.NAV_BACK_DOUBLE to ButtonAction.BACK,
             ButtonGesture.NAV_FWD_DOUBLE to ButtonAction.HOME,
-            // The reliable way to Back / Home on this pod: two opposite taps (focus cancels out).
-            ButtonGesture.NAV_BACK_THEN_FWD to ButtonAction.HOME,
-            ButtonGesture.NAV_FWD_THEN_BACK to ButtonAction.BACK,
+        )
+        // Same pod, but Back / Home on two opposite taps (the knob steps cancel out). The first
+        // press picks the action, matching the ×2 rows: ▲-first = Back, ▼-first = Home.
+        BACK_SET_COMBO -> BACK_SET.mapping() + mapOf(
+            ButtonGesture.NAV_BACK_THEN_FWD to ButtonAction.BACK,
+            ButtonGesture.NAV_FWD_THEN_BACK to ButtonAction.HOME,
         )
     }
 

@@ -11,12 +11,15 @@ package dev.zanderp.opencfmoto
  * so Back and Home have nowhere to live. Both singles still run as knob steps (they cancel out),
  * then the combo runs its own action. Pure state machine so it can be unit-tested.
  */
-class ButtonCombo(private val windowMs: Long = DEFAULT_WINDOW_MS) {
+class ButtonCombo {
     private var last: ButtonGesture? = null
     private var lastAt = 0L
 
-    /** Feed every committed single tap. Returns the combo gesture to run, or null. */
-    fun onSingle(gesture: ButtonGesture, nowMs: Long): ButtonGesture? {
+    /**
+     * Feed every committed single tap. Returns the combo gesture to run, or null. [windowMs] is
+     * read per press so Setup → Double-tap delay applies live (slow dashes need a wider window).
+     */
+    fun onSingle(gesture: ButtonGesture, nowMs: Long, windowMs: Long = MIN_WINDOW_MS): ButtonGesture? {
         val prev = last
         val combo = if (prev != null && nowMs - lastAt in 0..windowMs) comboFor(prev, gesture) else null
         if (combo != null) {
@@ -35,8 +38,14 @@ class ButtonCombo(private val windowMs: Long = DEFAULT_WINDOW_MS) {
     }
 
     companion object {
-        /** Tight on purpose: a slow overshoot-and-correct while scrolling must stay two steps. */
-        const val DEFAULT_WINDOW_MS = 400L
+        /**
+         * Floor for the pair window. Kept tight-ish so a slow overshoot-and-correct while
+         * scrolling stays two steps; riders on slow dashes widen it via Double-tap delay.
+         */
+        const val MIN_WINDOW_MS = 400L
+
+        /** Pair window for a given Double-tap delay setting (never below [MIN_WINDOW_MS]). */
+        fun windowFor(doubleTapMs: Long): Long = maxOf(MIN_WINDOW_MS, doubleTapMs)
 
         fun comboFor(first: ButtonGesture, second: ButtonGesture): ButtonGesture? = when {
             first == ButtonGesture.NAV_BACK && second == ButtonGesture.NAV_FWD -> ButtonGesture.NAV_BACK_THEN_FWD

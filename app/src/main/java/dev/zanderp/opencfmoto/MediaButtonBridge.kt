@@ -682,7 +682,8 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
             return
         }
 
-        // BACK/SET-style presets: two separate ▲▲ / ▼▼ taps are just fast scrolling, never ×2.
+        // Presets with navTapDoubles off (BACK/SET + combos): two separate ▲▲ / ▼▼ taps are just
+        // fast scrolling, never ×2.
         val tapDoubles = ButtonClusterPreset.allowsNavTapDoubles(context) ||
             single == ButtonGesture.SELECT_PRESS
 
@@ -736,7 +737,8 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
             ButtonMap.get(context, ButtonGesture.NAV_BACK_THEN_FWD) != ButtonAction.NONE ||
                 ButtonMap.get(context, ButtonGesture.NAV_FWD_THEN_BACK) != ButtonAction.NONE
         if (!anyComboMapped) return
-        combo.onSingle(single, SystemClock.elapsedRealtime())?.let { run(it) }
+        val window = ButtonCombo.windowFor(ButtonTimingPrefs.doubleTapMs(context))
+        combo.onSingle(single, SystemClock.elapsedRealtime(), window)?.let { run(it) }
     }
 
     private fun cancelPendingTaps() {

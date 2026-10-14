@@ -413,7 +413,7 @@ the matching config (or follow the tables below by hand).
 
 | Photo | Cluster | What the bike can send | Preset in the app |
 | --- | --- | --- | --- |
-| **A** | **BACK / SET** diamond (▲ ▼ BACK SET, turn signals, red horn) | Reliable **taps**. Discrete hold / Select ×2 usually missing; ▲▲/▼▼ *volume* ×2 often still works. | **BACK / SET diamond (limited)** |
+| **A** | **BACK / SET** diamond (▲ ▼ BACK SET, turn signals, red horn) | Reliable **taps**. Discrete hold / Select ×2 usually missing; ▲▲/▼▼ *volume* ×2 often still works. | **BACK / SET diamond (limited)**, or **BACK / SET diamond + combos** if ×2 never fires |
 | **B** | **MODE / ENT** (M MODE, +, Fn, center, ⌄ back, ENT, ▲ ▼) | Taps + often Select ×2; holds / ◀◀ ▶▶ best-effort (tune delays). | **MODE / ENT cluster** |
 | **C** | **5-way Explore** (Fn, ★, D-pad with voice in the center) | Full **tap / hold / ×2** on ◀ / ▶ / ★ (verified on 800MT Explore). | **5-way Explore (Fn / ★ / voice)** — shipped default |
 
@@ -471,19 +471,27 @@ Preset **BACK / SET diamond (limited)** — all nine rows:
 | **Backward ×2** | **Back** | Often via hard ▲▲ volume flick |
 | **Forward ×2** | **Home** | Often via hard ▼▼ volume flick |
 | **Select ×2** | Do nothing | Discrete double Select almost never arrives |
-| **Backward → Forward** (▲ then ▼) | **Home** | Two quick opposite taps; focus moves up and back, then the app list opens |
-| **Forward → Backward** (▼ then ▲) | **Back** | Same idea, the other way round |
-
-Two separate quick ▲▲ / ▼▼ taps stay plain scrolling on this preset — only a coalesced volume
-jump counts as ×2 — so fast scrolling can't throw you out to Home.
 
 **How to ride with it**
 
-1. Apply that preset (re-apply it after updating so the ▲▼ / ▼▲ rows are written).
-2. **▲ then ▼ quickly** (within ~0.4 s) = Home / app list · **▼ then ▲ quickly** = Back.
-3. If you'd rather, use the **on-screen pad** (Controls / Dash view) for Back / Home, or remap the combo rows.
+1. Apply that preset — taps feel snappy; try a firm double-flick on ▲/▼ for Back / Home.
+2. If volume ×2 never fires, use the **on-screen pad** (Controls / Dash view) for Back / Home, or remap one single.
 3. Setup timing sliders will not create hold/Select ×2 if the firmware isn't sending them.
 4. Optional: map Select to *Navigate to saved place 1* if you mainly need one-press nav.
+
+**Alternative: BACK / SET diamond + combos.** If the hard ▲▲ / ▼▼ flick never reaches Back / Home
+on your bike (the physical BACK key is usually handled by the dash itself and never reaches the
+phone), apply this preset instead. Same singles, plus two quick **opposite** taps — the knob steps
+cancel out, so focus ends where it started:
+
+| Gesture | Action | Notes |
+| --- | --- | --- |
+| **Backward → Forward** (▲ then ▼) | **Back** | ▲-first = Back, like ▲▲ |
+| **Forward → Backward** (▼ then ▲) | **Home** (app list) | ▼-first = Home, like ▼▼ |
+| **Backward ×2 / Forward ×2** | Back / Home | **Only** a hard coalesced flick — two separate quick taps stay plain scrolling |
+
+The pair has to land inside Setup → **Double-tap delay** (at least 400 ms). If ▲ then ▼ just moves
+focus up and down, raise it to **450 ms** or **1000 ms**.
 
 ##### Cluster B — MODE / ENT
 
