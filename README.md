@@ -471,11 +471,17 @@ Preset **BACK / SET diamond (limited)** — all nine rows:
 | **Backward ×2** | **Back** | Often via hard ▲▲ volume flick |
 | **Forward ×2** | **Home** | Often via hard ▼▼ volume flick |
 | **Select ×2** | Do nothing | Discrete double Select almost never arrives |
+| **Backward → Forward** (▲ then ▼) | **Home** | Two quick opposite taps; focus moves up and back, then the app list opens |
+| **Forward → Backward** (▼ then ▲) | **Back** | Same idea, the other way round |
+
+Two separate quick ▲▲ / ▼▼ taps stay plain scrolling on this preset — only a coalesced volume
+jump counts as ×2 — so fast scrolling can't throw you out to Home.
 
 **How to ride with it**
 
-1. Apply that preset — taps feel snappy; try a firm double-flick on ▲/▼ for Back / Home.
-2. If volume ×2 never fires, use the **on-screen pad** (Controls / Dash view) for Back / Home, or remap one single.
+1. Apply that preset (re-apply it after updating so the ▲▼ / ▼▲ rows are written).
+2. **▲ then ▼ quickly** (within ~0.4 s) = Home / app list · **▼ then ▲ quickly** = Back.
+3. If you'd rather, use the **on-screen pad** (Controls / Dash view) for Back / Home, or remap the combo rows.
 3. Setup timing sliders will not create hold/Select ×2 if the firmware isn't sending them.
 4. Optional: map Select to *Navigate to saved place 1* if you mainly need one-press nav.
 

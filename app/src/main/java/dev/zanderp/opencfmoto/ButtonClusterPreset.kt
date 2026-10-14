@@ -26,6 +26,11 @@ enum class ButtonClusterPreset(
      * clusters that cannot express discrete ×2 — waiting only adds lag.
      */
     val instantSingles: Boolean,
+    /**
+     * When false, two separate ◀/▲ or ▶/▼ taps never upgrade to ×2 — only a coalesced volume jump
+     * does. For pods where ×2 is mapped to Back/Home, so quick scrolling can't throw the rider out.
+     */
+    val navTapDoubles: Boolean = true,
 ) {
     FIVE_WAY(
         id = "five_way",
@@ -45,10 +50,11 @@ enum class ButtonClusterPreset(
     BACK_SET(
         id = "back_set",
         title = "BACK / SET diamond (limited)",
-        summary = "Snappy singles (no double-tap wait). Discrete hold / Select ×2 usually don't " +
-            "exist — but a hard ▲▲ / ▼▼ volume flick often coalesces into ×2 → Back / Home. " +
-            "On-screen pad covers anything else.",
+        summary = "▲/▼ = knob · SET = Select · ▲ then ▼ quickly = Home (app list) · " +
+            "▼ then ▲ quickly = Back. Fast ▲▲ / ▼▼ scrolling stays scrolling; only a hard " +
+            "coalesced volume flick still counts as ×2.",
         instantSingles = true,
+        navTapDoubles = false,
     );
 
     /**
@@ -70,6 +76,9 @@ enum class ButtonClusterPreset(
             // Discrete ×2 (if the dash ever sends it) also maps here via eager second-tap.
             ButtonGesture.NAV_BACK_DOUBLE to ButtonAction.BACK,
             ButtonGesture.NAV_FWD_DOUBLE to ButtonAction.HOME,
+            // The reliable way to Back / Home on this pod: two opposite taps (focus cancels out).
+            ButtonGesture.NAV_BACK_THEN_FWD to ButtonAction.HOME,
+            ButtonGesture.NAV_FWD_THEN_BACK to ButtonAction.BACK,
         )
     }
 
@@ -105,6 +114,10 @@ enum class ButtonClusterPreset(
             // No preset → snappy defaults (same as 5-way). Waiting only helps rare custom maps.
             return true
         }
+
+        /** False when the active preset only trusts coalesced ×2 on the ◀/▶ (▲/▼) axis. */
+        fun allowsNavTapDoubles(context: Context): Boolean =
+            active(context)?.navTapDoubles ?: true
 
         fun saveActive(context: Context, preset: ButtonClusterPreset?) {
             val p = prefs(context)

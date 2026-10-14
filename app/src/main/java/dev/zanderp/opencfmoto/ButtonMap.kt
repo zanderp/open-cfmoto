@@ -71,6 +71,10 @@ enum class ButtonGesture(
     NAV_BACK_DOUBLE("navBackDouble", "Backward ×2", "double-tap backward within a short window", ButtonAction.DPAD_LEFT),
     NAV_FWD_DOUBLE("navFwdDouble", "Forward ×2", "double-tap forward within a short window", ButtonAction.DPAD_RIGHT),
     SELECT_DOUBLE("selectDouble", "Select ×2", "double-tap the OK / ★ button", ButtonAction.BACK),
+    // Opposite-direction pairs: the two knob steps cancel out, so focus ends where it started and
+    // only the mapped action is felt. Lets 3-button pods (BACK/SET diamond) reach Back / Home.
+    NAV_BACK_THEN_FWD("navBackThenFwd", "Backward → Forward  ▲▼", "tap backward, then forward right after", ButtonAction.NONE),
+    NAV_FWD_THEN_BACK("navFwdThenBack", "Forward → Backward  ▼▲", "tap forward, then backward right after", ButtonAction.NONE),
 }
 
 /**

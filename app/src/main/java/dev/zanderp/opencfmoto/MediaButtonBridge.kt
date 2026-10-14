@@ -677,42 +677,72 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
 
         if (forceDouble) {
             ch.pending?.let { handler.removeCallbacks(it); ch.pending = null }
+            combo.reset()
             run(double)
             return
         }
+
+        // BACK/SET-style presets: two separate ▲▲ / ▼▼ taps are just fast scrolling, never ×2.
+        val tapDoubles = ButtonClusterPreset.allowsNavTapDoubles(context) ||
+            single == ButtonGesture.SELECT_PRESS
 
         // Eager singles: fire the tap now. A second tap inside the window still runs ×2 — no lag
         // waiting to disambiguate (BT echoes used to turn every press into D-pad when we waited).
         val snappy = ButtonTimingPrefs.snappySingles(context) ||
             ButtonClusterPreset.prefersInstantSingles(context)
         if (snappy) {
-            if (ch.pending != null && gap in 1 until window) {
+            if (tapDoubles && ch.pending != null && gap in 1 until window) {
                 ch.pending?.let { handler.removeCallbacks(it) }
                 ch.pending = null
+                combo.reset()
                 run(double)
                 return
             }
-            run(single)
+            runSingle(single)
             val clear = Runnable { ch.pending = null }
             ch.pending = clear
             handler.postDelayed(clear, window)
             return
         }
 
+        if (!tapDoubles) {
+            // Nothing to disambiguate against on this axis — don't make the rider wait.
+            runSingle(single)
+            return
+        }
         val wasPending = ch.pending != null
         ch.pending?.let { handler.removeCallbacks(it); ch.pending = null }
         if (wasPending) {
+            combo.reset()
             run(double)
         } else {
-            val r = Runnable { ch.pending = null; run(single) }
+            val r = Runnable { ch.pending = null; runSingle(single) }
             ch.pending = r
             handler.postDelayed(r, window)
         }
     }
 
+    /** ▲ then ▼ (or ▼ then ▲) in quick succession → [ButtonGesture.NAV_BACK_THEN_FWD] / [ButtonGesture.NAV_FWD_THEN_BACK]. */
+    private val combo = ButtonCombo()
+
+    /**
+     * Run a committed single tap, then check whether it completed an opposite-direction pair.
+     * Both knob steps still run (they cancel out), so focus is back where it started before the
+     * combo's own action (e.g. Home) fires. Skipped entirely while no combo is mapped.
+     */
+    private fun runSingle(single: ButtonGesture) {
+        run(single)
+        val anyComboMapped =
+            ButtonMap.get(context, ButtonGesture.NAV_BACK_THEN_FWD) != ButtonAction.NONE ||
+                ButtonMap.get(context, ButtonGesture.NAV_FWD_THEN_BACK) != ButtonAction.NONE
+        if (!anyComboMapped) return
+        combo.onSingle(single, SystemClock.elapsedRealtime())?.let { run(it) }
+    }
+
     private fun cancelPendingTaps() {
         taps.values.forEach { it.pending?.let(handler::removeCallbacks) }
         taps.clear()
+        combo.reset()
     }
 
     // ── gesture → action dispatch ────────────────────────────────────────────────────────────────
