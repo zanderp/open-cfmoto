@@ -85,7 +85,7 @@
     <string name="garage_scan_new_bike">Nieuwe motor scannen</string>
     <string name="garage_enter_wi_fi_manually">Voer Wi‑Fi handmatig in</string>
     <string name="gpx_map">Kaart</string>
-    <string name="gpx_free_ride_gpx_search_poi_on_the_dash_search_stay">Gratis rit, GPX, zoeken en POI op het dashboard. Zoeken blijft in deze app (niet in Google Maps).</string>
+    <string name="gpx_free_ride_gpx_search_poi_on_the_dash_search_stay">Vrije rit, GPX, zoeken en POI op het dashboard. Zoeken blijft in deze app (niet in Google Maps).</string>
     <string name="gpx_ride">Rijden</string>
     <string name="gpx_start_ride">Begin rit</string>
     <string name="gpx_map_on_phone">Kaart op telefoon</string>
@@ -105,7 +105,7 @@
     <string name="gpx_metric">Metrisch</string>
     <string name="gpx_imperial">Imperiaal</string>
     <string name="gpx_voice_prompts">Gesproken aanwijzingen</string>
-    <string name="gpx_on">Op</string>
+    <string name="gpx_on">Aan</string>
     <string name="gpx_next_stop_details">Gegevens volgende stop</string>
     <string name="gpx_auto_finish_on_arrive">Automatische afwerking bij aankomst</string>
     <string name="gpx_dash_chrome">Dash chroom</string>
@@ -118,10 +118,10 @@
     <string name="gpx_fast_quickest_roads_fun_twistier_circuit_go_to_a">Snel = snelste wegen. Leuk = bochtiger. Circuit = naar een plaats gaan en naar huis terugkeren.</string>
     <string name="gpx_fast">Snel</string>
     <string name="gpx_fun">Plezier</string>
-    <string name="gpx_circuit">Circuit</string>
+    <string name="gpx_circuit">Rondrit</string>
     <string name="gpx_avoid_tolls">Vermijd tol</string>
     <string name="gpx_avoid_highways">Vermijd snelwegen</string>
-    <string name="gpx_fun_circuit_length">Leuke circuitlengte</string>
+    <string name="gpx_fun_circuit_length">Leuke rondritlengte</string>
     <string name="gpx_30_km">30 kilometer</string>
     <string name="gpx_60_km">60 km</string>
     <string name="gpx_100_km">100 km</string>
