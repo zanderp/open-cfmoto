@@ -13,12 +13,14 @@ import android.database.ContentObserver
 import android.media.AudioFocusRequest
 import android.media.AudioFormat
 import android.media.AudioManager
+import android.media.AudioPlaybackConfiguration
 import android.media.AudioTrack
 import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
 import android.view.KeyEvent
@@ -83,20 +85,23 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
     private var lastReclaimAt = 0L
     private val reclaimRunnable = Runnable {
         reclaimPending = false
-        if (ButtonMode.isControlAa(context)) reclaimCapture("focus-loss")
+        if (holdsButtons()) reclaimCapture("focus-loss")
     }
     private var keepAliveTicks = 0
     /** Last time a bike media key was handled — skip focus re-request while the rider is tapping. */
     private var lastKeyAt = 0L
     private val keepAliveRunnable = object : Runnable {
         override fun run() {
-            if (!ButtonMode.isControlAa(context) || session == null) return
+            if (!holdsButtons() || session == null) return
             keepAliveTicks++
             // Session refresh only while keys are flying — re-requesting focus mid-tap makes the
             // BT stack re-deliver the same press (looks like "need 3 taps for one step").
-            refreshPlayingAppearance(reason = "keep-alive")
+            // Remote-only: the music app may have started a player we didn't hear about — be newest.
+            if (forwardsToMusic()) replayRunnable.run() else refreshPlayingAppearance(reason = "keep-alive")
             val idle = SystemClock.elapsedRealtime() - lastKeyAt > KEY_IDLE_BEFORE_FOCUS_MS
-            if (idle && keepAliveTicks % 3 == 0) requestButtonFocus(reason = "keep-alive")
+            if (idle && keepAliveTicks % 3 == 0 && ButtonMode.isControlAa(context)) {
+                requestButtonFocus(reason = "keep-alive")
+            }
             handler.postDelayed(this, KEEP_ALIVE_MS)
         }
     }
@@ -118,13 +123,21 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
                 session = s
                 instance = this
                 val on = ButtonMode.isControlAa(context)
-                if (on) takeMediaFocus()
-                s.isActive = on
+                val hold = holdsButtons()
+                if (hold) takeMediaFocus()
+                s.isActive = hold
                 s.setPlaybackToLocal(mediaAttrs)
                 if (on) maybePinVolume("start")
+                if (hold) startKeepAlive()
                 startVolumeObserver()
+                audio.registerAudioPlaybackCallback(playbackCallback, handler)
                 startAbsentVolumeProbe()
-                log("[BTN] bridge ready — mode=${if (on) "control dash (media focus + volume hijacked)" else "control media"} " +
+                val mode = when {
+                    on -> "control dash (media focus + volume hijacked)"
+                    hold -> "remote only (holds media buttons, no audio focus; other keys passed to music)"
+                    else -> "control media"
+                }
+                log("[BTN] bridge ready — mode=$mode " +
                     "presence=${ButtonPresencePrefs.summarize(context)}")
                 scheduleReassertWhenBikeUp()
             } catch (e: Exception) {
@@ -182,6 +195,25 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
         }
     }
 
+    /** Re-evaluate after the remote service or music pass-through access is switched on/off. */
+    fun refreshMode() {
+        handler.post {
+            if (holdsButtons() != (session?.isActive == true)) setCaptureActive(ButtonMode.isControlAa(context))
+        }
+    }
+
+    /**
+     * Remote-only mode: the rider's Bluetooth remote drives AA while the bike / Cardo media keys stay
+     * on music. With the screen off the remote's keys never reach [RemoteKeyService], so we still
+     * own media buttons — and pass every non-remote key on via [MediaKeyForwarder].
+     */
+    private fun forwardsToMusic(): Boolean =
+        !ButtonMode.isControlAa(context) && RemotePad.enabled(context) &&
+            RemoteKeyService.isEnabled(context) && MediaKeyForwarder.hasAccess(context)
+
+    /** Whether we take media focus and keep the session hot (handlebar capture or remote-only). */
+    private fun holdsButtons(): Boolean = ButtonMode.isControlAa(context) || forwardsToMusic()
+
     /**
      * Live toggle: grab (true) or release (false) the bike's AVRCP keys.
      * ON = bars always drive Android Auto UI (never Spotify skip). Control music by navigating
@@ -190,15 +222,17 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
     fun setCaptureActive(on: Boolean) {
         handler.post {
             try {
-                if (on) takeMediaFocus() else releaseMediaFocus()
-                session?.isActive = on
-                if (on) {
-                    maybePinVolume("capture-on")
-                    startKeepAlive()
-                    startAbsentVolumeProbe()
-                } else {
+                val hold = holdsButtons()
+                if (hold) takeMediaFocus() else releaseMediaFocus()
+                session?.isActive = hold
+                if (hold) startKeepAlive() else {
                     stopKeepAlive()
                     cancelReclaim()
+                }
+                if (on) {
+                    maybePinVolume("capture-on")
+                    startAbsentVolumeProbe()
+                } else {
                     cancelAbsentVolumeProbe()
                     unpinVolume()
                     heldSelect.reset()
@@ -206,7 +240,13 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
                     heldFwd.reset()
                     cancelPendingTaps()
                 }
-                log("[BTN] capture ${if (on) "ON — bars → AA UI (music can play; control it in the AA UI)" else "OFF — bars control media/volume"}")
+                log(
+                    "[BTN] capture " + when {
+                        on -> "ON — bars → AA UI (music can play; control it in the AA UI)"
+                        hold -> "REMOTE ONLY — remote → AA UI, other media keys passed to music"
+                        else -> "OFF — bars control media/volume"
+                    },
+                )
             } catch (e: Exception) {
                 log("[BTN] setCaptureActive failed: $e")
             }
@@ -219,7 +259,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
      */
     fun yieldForAaAudio(@Suppress("UNUSED_PARAMETER") holdMs: Long) {
         handler.post {
-            if (!ButtonMode.isControlAa(context)) return@post
+            if (!holdsButtons()) return@post
             log("[BTN] AA audio active — refreshing button session (music keeps playing)")
             startSilence()
             refreshPlayingAppearance(reason = "aa-audio")
@@ -227,7 +267,9 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
     }
 
     private fun takeMediaFocus() {
-        requestButtonFocus(reason = "take-focus")
+        // Remote-only never holds focus: even MAY_DUCK nav focus ducks the rider's music to 20%.
+        if (ButtonMode.isControlAa(context)) requestButtonFocus(reason = "take-focus")
+        else abandonButtonFocus()
         startSilence()
         refreshPlayingAppearance(reason = "take-focus")
         startKeepAlive()
@@ -262,7 +304,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
             else -> "focus=$change"
         }
         log("[BTN] audio focus → $name")
-        if (!ButtonMode.isControlAa(context)) return
+        if (!holdsButtons()) return
         when (change) {
             AudioManager.AUDIOFOCUS_GAIN -> {
                 startSilence()
@@ -279,7 +321,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
     }
 
     private fun scheduleReclaim(reason: String) {
-        if (!ButtonMode.isControlAa(context)) return
+        if (!holdsButtons()) return
         val now = SystemClock.elapsedRealtime()
         if (now - lastReclaimAt < RECLAIM_MIN_GAP_MS) {
             if (!reclaimPending) {
@@ -299,9 +341,46 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
         handler.removeCallbacks(reclaimRunnable)
     }
 
+    private fun abandonButtonFocus() {
+        try { focusRequest?.let { audio.abandonAudioFocusRequest(it) } } catch (_: Exception) {}
+        focusRequest = null
+    }
+
+    /**
+     * Remote-only has no focus to lose, so watch players instead. Media buttons go to the app that
+     * most recently STARTED playback — the music app wins on every track change. Restart our silent
+     * track just after, so we're the newest player again (no focus taken, so music isn't ducked).
+     */
+    private var lastReplayAt = 0L
+    private val replayRunnable = Runnable {
+        if (!forwardsToMusic()) return@Runnable
+        lastReplayAt = SystemClock.elapsedRealtime()
+        if (reportedState() != PlaybackState.STATE_PLAYING) {
+            // Music paused: any live stream (even ours, silent) tells a helmet music is still
+            // playing — a Cardo then re-sends PAUSE every 2 s. Go quiet; we stay the newest player.
+            stopSilence()
+        } else {
+            // Start the new track before dropping the old, or the music app is briefly newest.
+            val old = silence
+            silence = null
+            startSilence()
+            try { old?.pause(); old?.flush(); old?.release() } catch (_: Exception) {}
+        }
+        refreshPlayingAppearance(reason = "keep-alive")
+    }
+    private val playbackCallback = object : AudioManager.AudioPlaybackCallback() {
+        override fun onPlaybackConfigChanged(configs: MutableList<AudioPlaybackConfiguration>) {
+            if (!forwardsToMusic()) return
+            // Our own restart fires this too — ignore the echo.
+            if (SystemClock.elapsedRealtime() - lastReplayAt < REPLAY_ECHO_MS) return
+            handler.removeCallbacks(replayRunnable)
+            handler.postDelayed(replayRunnable, REPLAY_DELAY_MS)
+        }
+    }
+
     /** Pull AVRCP back with duckable nav focus + session flip — does not pause music. */
     private fun reclaimCapture(reason: String) {
-        if (!ButtonMode.isControlAa(context)) return
+        if (!holdsButtons()) return
         lastReclaimAt = SystemClock.elapsedRealtime()
         log("[BTN] reclaiming media buttons ($reason) — nav duck (music keeps playing)")
         try {
@@ -310,10 +389,10 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
             session?.isActive = false
             handler.postDelayed({
                 try {
-                    if (!ButtonMode.isControlAa(context)) return@postDelayed
+                    if (!holdsButtons()) return@postDelayed
                     refreshPlayingAppearance(reason = "reclaim")
                     session?.isActive = true
-                    maybePinVolume("reclaim")
+                    if (ButtonMode.isControlAa(context)) maybePinVolume("reclaim")
                     log("[BTN] media buttons reclaimed")
                 } catch (e: Exception) {
                     log("[BTN] reclaim failed: $e")
@@ -326,7 +405,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
 
     private fun startKeepAlive() {
         handler.removeCallbacks(keepAliveRunnable)
-        if (ButtonMode.isControlAa(context)) {
+        if (holdsButtons()) {
             handler.postDelayed(keepAliveRunnable, KEEP_ALIVE_MS)
         }
     }
@@ -347,7 +426,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
                             PlaybackState.ACTION_SKIP_TO_PREVIOUS or PlaybackState.ACTION_FAST_FORWARD or
                             PlaybackState.ACTION_REWIND
                     )
-                    .setState(PlaybackState.STATE_PLAYING, 0, 1f)
+                    .setState(reportedState(), 0, 1f)
                     .build()
             )
             session?.isActive = true
@@ -355,6 +434,18 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
             if (reason != "keep-alive") log("[BTN] playing appearance refreshed ($reason)")
         } catch (e: Exception) {
             log("[BTN] refreshPlayingAppearance failed: $e")
+        }
+    }
+
+    /**
+     * Handlebar capture always reports PLAYING (the dash only sends keys to a playing player).
+     * Remote-only mirrors the music app, so helmet play/pause sends PLAY when music is paused.
+     */
+    private fun reportedState(): Int {
+        if (!forwardsToMusic()) return PlaybackState.STATE_PLAYING
+        return when (MediaKeyForwarder.musicState(context)) {
+            PlaybackState.STATE_PLAYING, PlaybackState.STATE_BUFFERING -> PlaybackState.STATE_PLAYING
+            else -> PlaybackState.STATE_PAUSED
         }
     }
 
@@ -447,6 +538,10 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
 
     fun stop() {
         if (instance === this) instance = null
+        try { audio.unregisterAudioPlaybackCallback(playbackCallback) } catch (_: Exception) {}
+        handler.removeCallbacks(replayRunnable)
+        try { remoteWake?.release() } catch (_: Exception) {}
+        remoteWake = null
         cancelPendingTaps()
         stopKeepAlive()
         cancelReclaim()
@@ -718,8 +813,9 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
     // ── gesture → action dispatch ────────────────────────────────────────────────────────────────
 
     /** Run whatever [ButtonMap] says this gesture should do (read per press, so changes are live). */
-    private fun run(gesture: ButtonGesture) {
-        if (!ButtonMode.isControlAa(context)) return   // media mode: leave the buttons to music
+    private fun run(gesture: ButtonGesture, fromRemote: Boolean = false) {
+        // Media mode leaves the bike's buttons to music; a paired remote still drives AA.
+        if (!fromRemote && !ButtonMode.isControlAa(context)) return
         val action = ButtonMap.get(context, gesture)
         log("[BTN] ${gesture.label} → ${action.label}")
         perform(action)
@@ -808,6 +904,31 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
         override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
             @Suppress("DEPRECATION")
             val ke = mediaButtonIntent.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT) ?: return true
+            val forward = forwardsToMusic()
+            val remote = if (forward) RemotePad.remoteMediaGesture(context, ke)
+            else RemotePad.taughtMediaGesture(context, ke)
+            remote?.let { gesture ->
+                if (ke.action == KeyEvent.ACTION_DOWN && ke.repeatCount == 0) {
+                    log("[BTN] remote ${KeyEvent.keyCodeToString(ke.keyCode)} (${ke.device?.name}) → ${gesture.label}")
+                    wakeForRemote()
+                    run(gesture, fromRemote = true)
+                }
+                return true
+            }
+            if (forward) {
+                if (ke.action == KeyEvent.ACTION_DOWN && ke.repeatCount == 0) {
+                    log("[BTN] ${KeyEvent.keyCodeToString(ke.keyCode)} → music app")
+                }
+                if (!MediaKeyForwarder.forward(context, ke) && ke.action == KeyEvent.ACTION_DOWN) {
+                    log("[BTN] no music app to pass ${KeyEvent.keyCodeToString(ke.keyCode)} to")
+                }
+                // A skip / play starts a new player in the music app, which takes the buttons back.
+                if (ke.action == KeyEvent.ACTION_UP) {
+                    handler.removeCallbacks(replayRunnable)
+                    handler.postDelayed(replayRunnable, REPLAY_AFTER_FORWARD_MS)
+                }
+                return true
+            }
             when (ke.action) {
                 KeyEvent.ACTION_DOWN -> {
                     val repeat = if (ke.repeatCount > 0) " repeat=${ke.repeatCount}" else ""
@@ -820,12 +941,44 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
         }
         // Fallbacks: the bike takes the raw-key path above; other dashes / BT remotes may dispatch
         // here. These carry no hold timing, so they can only ever be a short press / double-tap.
-        override fun onPlay() = detectDoubleTap(
+        override fun onPlay() = if (forwardsToMusic()) forwardTap(KeyEvent.KEYCODE_MEDIA_PLAY)
+        else detectDoubleTap(
             ButtonGesture.SELECT_PRESS, ButtonGesture.SELECT_DOUBLE, forceDouble = false,
         )
-        override fun onPause() = detectDoubleTap(
+        override fun onPause() = if (forwardsToMusic()) forwardTap(KeyEvent.KEYCODE_MEDIA_PAUSE)
+        else detectDoubleTap(
             ButtonGesture.SELECT_PRESS, ButtonGesture.SELECT_DOUBLE, forceDouble = false,
         )
+    }
+
+    /** Transport-control fallback in remote-only mode: replay it to the music app as a key tap. */
+    private fun forwardTap(keyCode: Int) {
+        MediaKeyForwarder.forward(context, KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
+        MediaKeyForwarder.forward(context, KeyEvent(KeyEvent.ACTION_UP, keyCode))
+    }
+
+    /** One non-counted lock, re-armed by every remote press, so the window slides. */
+    private var remoteWake: PowerManager.WakeLock? = null
+
+    /**
+     * Keep the screen (dimmed) awake for [REMOTE_WAKE_MS] after every remote press, waking it if
+     * it's off. Remotes turn holds / double-taps into VOLUME / HOME, which only [RemoteKeyService]
+     * can catch — and it only sees keys while the screen is on. With the screen off, only the
+     * remote's plain media taps reach us (via MediaSession), so one of those has to wake it.
+     */
+    private fun wakeForRemote() {
+        if (!RemoteKeyService.isEnabled(context)) return
+        val pm = context.getSystemService(PowerManager::class.java) ?: return
+        try {
+            val wl = remoteWake ?: @Suppress("DEPRECATION") pm.newWakeLock(
+                PowerManager.SCREEN_DIM_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "OpenCfMoto:remote",
+            ).also { it.setReferenceCounted(false); remoteWake = it }
+            if (!pm.isInteractive) log("[BTN] remote press with screen off — waking screen")
+            wl.acquire(REMOTE_WAKE_MS)
+        } catch (e: Exception) {
+            log("[BTN] remote wake failed: $e")
+        }
     }
 
     private fun isSelectKey(keyCode: Int) = when (keyCode) {
@@ -916,6 +1069,12 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
 
         /** Don't re-request audio focus while the rider is actively pressing. */
         private const val KEY_IDLE_BEFORE_FOCUS_MS = 2_500L
+        /** Let the other app's new player settle before we start ours after it. */
+        private const val REPLAY_DELAY_MS = 250L
+        private const val REPLAY_ECHO_MS = 1_000L
+        private const val REPLAY_AFTER_FORWARD_MS = 1_200L
+        /** Screen stays on this long after the last remote press, so holds / double-taps work. */
+        private const val REMOTE_WAKE_MS = 60_000L
 
         private const val REASSERT_POLL_MS = 1_000L
         private const val REASSERT_GIVEUP_MS = 90_000L
@@ -936,8 +1095,13 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
         @Volatile var instance: MediaButtonBridge? = null
             private set
 
+        /** A remote key arrived via [RemoteKeyService]: slide the stay-awake window. */
+        fun remotePressed() {
+            instance?.let { b -> b.handler.post { b.wakeForRemote() } }
+        }
+
         fun injectGesture(gesture: ButtonGesture) {
-            instance?.let { b -> b.handler.post { b.run(gesture) } }
+            instance?.let { b -> b.handler.post { b.run(gesture, fromRemote = true) } }
         }
 
         fun injectAction(action: ButtonAction) {

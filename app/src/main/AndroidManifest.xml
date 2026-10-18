@@ -39,6 +39,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Remote-only mode: a screen-off remote press briefly lights the screen (RemoteKeyService). -->
+    <uses-permission android:name="android.permission.TURN_SCREEN_ON" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Best-effort close of the official CFMoto/EasyConnect app when it's holding the bike's
          mirroring-link ports (10920-10922) and blocking our connection. Only ever targets that one
@@ -131,6 +133,39 @@
             android:name=".AndroidAutoService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice|location|microphone" />
+        <!-- Optional, rider-enabled: sees a paired Bluetooth remote's keys in the background so
+             they can drive Android Auto (see RemoteKeyService). Ignores every other input. -->
+        <service
+            android:name=".RemoteKeyService"
+            android:exported="false"
+            android:label="@string/remote_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/remote_key_service" />
+        </service>
+        <!-- Optional, rider-enabled: notification access only so remote-only mode can pass the
+             Cardo / headset media keys on to the music app (MediaKeyForwarder). -->
+        <service
+            android:name=".MediaKeyForwarder"
+            android:exported="false"
+            android:label="@string/remote_forwarder_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+            <!-- We never read notifications: lock out Conversations / Notifications / Silent in
+                 Settings, leaving only Real-time (Android needs one type), and unbind on connect. -->
+            <meta-data
+                android:name="android.service.notification.default_filter_types"
+                android:value="ongoing" />
+            <meta-data
+                android:name="android.service.notification.disabled_filter_types"
+                android:value="conversations|alerting|silent" />
+        </service>
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
             android:value="barcode" />

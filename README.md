@@ -72,6 +72,7 @@ CFMoto · Voge · Morini · Morbidelli · QJ Motor · Rieju · UM · Wmoto · GO
 | 📺 **Dash view** | Big home-screen button — watch and drive the live dash from the phone (touch, pad, fullscreen). |
 | 🎛️ **Controls** | Big home-screen button — on-screen D-pad/knob, media volume, and handlebar-button mapping. |
 | 🕹️ **Handlebar buttons → AA** | On touchless / focus-mode dashes, ◀/▶/★ (or ▲/▼) navigate Android Auto over Bluetooth — snappy singles, tap / hold / ×2, Teach-my-handlebar, every gesture remappable. |
+| 🎮 **Bluetooth remote → AA** | Pair a cheap bar or ring remote and teach its keys. *Remote-only* mode drives Android Auto with the remote while your helmet (Cardo / Sena) and bike buttons stay on music, even with the phone screen off. |
 | 🧭 **Navigate-to + saved places** | Type a destination or map a handlebar button to a saved place for one-press turn-by-turn. |
 | 🎙️ **Voice / Assistant** | Streams your (helmet) mic to Android Auto so "Hey Google" sets a destination hands-free. |
 | ⚡ **One-tap Connect & Auto-connect** | Remembers your bike; reconnects on launch when in range; Wi‑Fi join timeout + auto re-join after ignition cycles. |
@@ -561,6 +562,88 @@ on-screen pad. Turn the switch **OFF** only if you want the physical bars to con
 
 If Spotify (or another player) steals the buttons mid-ride: press **★** to **pause** the song so
 OpenCfMoto can reclaim the bars for navigation, then start music again when you want.
+
+##### Bluetooth remote (bar / ring remote)
+
+No usable handlebar buttons, or want your helmet comms to stay on music? Pair a cheap Bluetooth
+**media remote** (the 3-button "SmartRemote" kind), a ring remote, a keypad, or a gamepad. Each key
+stands in for a handlebar gesture, so everything in the tables above (knob, Select, Back, D-pad,
+*Navigate to saved place*) works from the remote.
+
+The app tells the remote apart from your helmet and bike by **device type**, not name. A remote
+pairs as an *input device*; Cardo / Sena / the bike's own media buttons arrive as Bluetooth audio
+controls. Remote keys drive Android Auto; everything else stays on music.
+
+**Setup — remote-only (recommended)**
+
+1. Pair the remote in Android Bluetooth settings.
+2. **Controls → Customize buttons → Bluetooth remote pad** → **On**.
+3. Tap **Use remote in the background…** and switch on **OpenCfMoto remote** in Accessibility.
+4. Tap **Keep helmet / headset buttons on music…** and allow notification access for
+   **OpenCfMoto music pass-through**. Android warns that it can read notifications; it doesn't.
+   *Conversations*, *Notifications* and *Silent* are locked off, and the app stops Android
+   delivering it notifications once access is granted. It only uses the access to find your
+   music app's controls.
+5. Turn **Handlebar buttons drive Android Auto** **off** (Controls). The bike's own buttons go back
+   to music; only the remote drives AA.
+6. **Teach a remote button…** → pick a gesture → press the remote key. Then set what each gesture
+   *does* in the **Gestures** list above (tap a row → pick an action).
+
+> **Teach vs Gestures.** *Teach* says which **gesture** a remote key is. The **Gestures** list says
+> what that gesture **does**. To put D-pad right on a remote hold, don't teach the hold to
+> "Forward (hold)"; set the **Forward (hold)** row to *D-pad right*.
+
+**What cheap remotes actually send**
+
+Most media remotes work out tap / hold / double-tap in their own chip and send ordinary keys. The
+app sees those keys, so each one can be taught to its own gesture:
+
+| You press | Remote typically sends | Teach it as (example) |
+| --- | --- | --- |
+| tap ▶▶ / ◀◀ / ⏯ | Next / Previous / Play-Pause | Forward / Backward / Select |
+| hold ▶▶ or ◀◀ | Volume down / up, repeated | Select ×2 (Back) / Backward ×2 (D-pad left) |
+| double-tap | Home (some remotes: Power ⚠) | Select ×2 (Back) |
+| hold ⏯ | a real hold | *(no teaching)* set the **Forward (hold)** / **Select (hold)** row |
+
+A volume hold-stream counts as **one** press. ⚠ If a double-tap sends **Power**, it turns the
+phone screen off and no app can intercept it — avoid it. Watch `[REMOTE]` lines in **Logs** to
+see exactly what your remote sends.
+
+**Phone in your pocket (screen off)**
+
+Android only lets the app see *every* remote key while the screen is on. With the screen off, only
+the remote's plain **taps** (Next / Previous / Play-Pause) get through — volume and Home keys from
+holds and double-taps don't. So:
+
+- **Any tap** with the screen off works *and* wakes the screen (dimmed, still locked).
+- The screen then stays awake for **1 minute after your last remote press**, so holds and
+  double-taps (Back, D-pad) work for the rest of your interaction.
+- In practice: tap once to start, then use everything; pocket it and it sleeps a minute later.
+
+**Music keeps playing at normal volume.** Remote-only mode holds the media buttons without taking
+audio focus, so Spotify / YouTube Music is never ducked. Helmet and bike media keys are passed
+straight to the playing music app.
+
+**Remote log lines**
+
+| Log line | Meaning |
+| --- | --- |
+| `[REMOTE] KEYCODE_… (SmartRemote) → …` | Remote key caught (screen on) and run as that gesture |
+| `[BTN] remote KEYCODE_… (SmartRemote) → …` | Remote tap caught with the screen off |
+| `[BTN] remote press with screen off — waking screen` | First screen-off press woke the phone |
+| `[BTN] KEYCODE_… → music app` | Helmet / bike media key passed to your music app |
+| `[BTN] capture REMOTE ONLY — …` | Remote-only mode is active |
+| `remote pad teach: KEYCODE_… → …` | A remote key was taught |
+
+**Notes**
+
+- Remotes that pair as a **headset** (not an input device) look like a helmet, so their keys go to
+  music. Most cheap remotes pair as input devices.
+- APK installs on Android 13+: Android may block the Accessibility switch with a *Restricted
+  setting* message. After that (not before) **App info → ⋮ → Allow restricted settings** appears;
+  allow it, then switch the service on. Installs over USB / adb aren't restricted.
+- Without the Accessibility service, a remote only works while OpenCfMoto is on screen (and its
+  media keys when *Handlebar buttons drive Android Auto* is on).
 
 ### 📺 Dash view (watch & control from the phone)
 

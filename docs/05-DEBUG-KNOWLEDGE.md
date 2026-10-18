@@ -287,6 +287,41 @@ must live in one of these (or the FGS), never solely in `MainActivity`.
 
 ---
 
+## 4b. Bluetooth remote — Android key routing (verified on a Moto Edge 50 Neo, Android 16)
+
+Findings behind `RemoteKeyService`, `MediaKeyForwarder` and remote-only mode in `MediaButtonBridge`:
+
+- **Accessibility key filtering only sees keys while the screen is on.** With the screen off, a
+  remote's media keys skip the filter and go straight to the *media-button session*; its
+  VOLUME / HOME keys go to the system (volume change / nothing). POWER is never filterable.
+- **Media-button session = the session of the app that most recently *started* a player**, even
+  if its session is inactive. OpenCfMoto plays AA audio, so it often wins by accident (and used to
+  swallow helmet keys in media mode). A music app wins again on every track change / resume.
+  Remote-only mode restarts its silent track **new-before-old** on every playback change and each
+  keep-alive; stopping first leaves a ~25 ms gap where the music app is newest.
+- **Holding `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` ducks other players to 20 %** (VolumeShaper
+  `[1.0, 0.2]`). Handlebar-capture mode still does this; remote-only takes no focus.
+- **MediaSessionService flattens a held PLAY_PAUSE into a ~1 ms tap** before the session sees it.
+  The accessibility filter sees the real down/up, so holds only work with the screen on.
+- **Device identity:** a HID remote has a real external `InputDevice`; Cardo / bike AVRCP keys
+  arrive with `deviceId=-1` (virtual). `RemotePad.isExternalPad` also rejects the phone's built-in
+  keys (`!isExternal`), so phone volume buttons are never treated as a remote.
+- **Cheap "SmartRemote" chips do gesture detection themselves:** tap → NEXT / PREVIOUS / PLAY_PAUSE;
+  hold ▶▶ / ◀◀ → VOLUME_DOWN / UP every ~300 ms (folded into one press via `HOLD_STREAM_GAP_MS`);
+  double-tap ▶▶ → HOME, ◀◀ → POWER, ⏯ → nothing.
+- **Helmets (Cardo) decide PLAY vs PAUSE from what the media-button owner reports *and* whether
+  audio is streaming.** While OpenCfMoto said PLAYING, or its silent track kept the Bluetooth stream
+  open, a Cardo re-sent PAUSE every 2 s and its Play never got through. Remote-only mode mirrors the
+  music app's state and stops the silent track while music is paused; it stays media-button owner.
+- **Notification access is only needed *granted*:** `getActiveSessions` works after the listener
+  calls `requestUnbind()`, so the pass-through receives no notifications at all.
+- **Dialogs have their own window:** an activity's `dispatchKeyEvent` never sees keys while a
+  dialog is up — the teach dialog forwards via `setOnKeyListener`.
+- Tools: `adb shell getevent -lt /dev/input/eventN` (raw remote keys), `adb logcat -s
+  MediaSessionService:D` (who gets each media key, and media-button session changes).
+
+---
+
 ## 5. This bike (from the QR in the logs)
 `ssid=CFMOTO1565 modelId=37426 sn=0rLs action=1 (ap=true, p2p=false)` → matches
 `Cfdl26LandscapeProfile` ("CFDL26 / MotoPlay Landscape (800MT)"). Bike gateway `192.168.0.1`;

@@ -1,6 +1,6 @@
 # OpenCfMoto — Privacy & Permissions
 
-_Last updated: 2026-07-29_
+_Last updated: 2026-10-12_
 
 OpenCfMoto is a **local-first** app. It connects your phone to a CFMoto MotoPlay
 dashboard (T-Box) over the bike's own Wi-Fi and projects Android Auto or your
@@ -47,12 +47,15 @@ This document explains what the app can access, why, and where data goes.
 | --- | --- | --- |
 | **Screen-capture approval** | Every time you start mirroring | Android requires you to approve capturing the display or a chosen app; the app cannot approve this silently |
 | **Display over other apps** *(optional)* | Only if you enable seamless auto-resume | Lets the foreground service relaunch Android Auto after a long stop with the screen off. If not granted, you get a tap-to-resume notification instead |
+| **Accessibility service — "OpenCfMoto remote"** *(optional)* | Only if you switch it on for a Bluetooth remote | Filters **key presses only**, so a paired Bluetooth remote can drive Android Auto while the app is in the background. It acts only on keys from external Bluetooth / USB input devices, and only while an Android Auto or Map session runs. It does **not** read the screen, window contents, or anything you type, and key presses are not stored or sent anywhere |
+| **Notification access — "OpenCfMoto music pass-through"** *(optional)* | Only if you enable remote-only mode | Lets the app find your music app's media controls so helmet / bike media buttons can be passed on to it. The app **never reads your notifications**: it locks out *Conversations*, *Notifications* and *Silent* in Android's settings for this permission and asks Android to stop delivering it notifications as soon as access is granted. Android's grant dialog still shows its standard "can read all notifications" warning, which apps cannot change |
 
 ### Technical permissions granted by Android
 
 Internet and network-state access, Wi-Fi state/change, Wi-Fi multicast (for
 NSD/mDNS discovery of the dash), foreground-service types (media projection,
-connected device, location), and a wake lock. These keep the local T-Box
+connected device, location), a wake lock, and *turn screen on* (a remote press
+with the screen off briefly lights it so the next remote keys work). These keep the local T-Box
 connection and the active projection alive. The manifest also declares package
 visibility for Android Auto / Google Play services so the app can detect and
 launch the installed Android Auto component — this does not grant access to your
@@ -123,7 +126,9 @@ import a QR from a saved bike; without **Nearby Wi-Fi/Location**, the dash can't
 be discovered or joined; without **Notifications**, projection can't run as a
 managed foreground session; without **screen-capture approval**, mirroring can't
 start; without **Location while logging**, trips won't record a route. Optional
-overlay dimming/seamless-resume simply stays off unless granted.
+overlay dimming/seamless-resume simply stays off unless granted. Without the
+optional **remote** accessibility service or **music pass-through**, a Bluetooth
+remote only works while OpenCfMoto is on screen.
 
 ---
 

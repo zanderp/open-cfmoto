@@ -52,6 +52,8 @@ class ButtonMappingActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.remote_pad_on).setOnClickListener { setRemotePad(true) }
         findViewById<MaterialButton>(R.id.remote_pad_off).setOnClickListener { setRemotePad(false) }
         findViewById<MaterialButton>(R.id.btn_teach_remote).setOnClickListener { teachRemote() }
+        findViewById<MaterialButton>(R.id.btn_remote_service).setOnClickListener { openRemoteService() }
+        findViewById<MaterialButton>(R.id.btn_remote_music).setOnClickListener { openMusicPassThrough() }
 
         findViewById<MaterialButton>(R.id.btn_overlay).setOnClickListener {
             try {
@@ -69,6 +71,8 @@ class ButtonMappingActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refresh()
+        // Back from Accessibility / Notification access settings: pick up remote-only mode.
+        MediaButtonBridge.instance?.refreshMode()
     }
 
     /** Saved places are free text, so commit them whenever the screen goes away. */
@@ -173,6 +177,14 @@ class ButtonMappingActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.tv_presence).text =
             "Handlebar sources: ${ButtonPresencePrefs.summarize(this)}"
         highlightOnOff(R.id.remote_pad_on, R.id.remote_pad_off, RemotePad.enabled(this))
+        findViewById<MaterialButton>(R.id.btn_remote_service).setText(
+            if (RemoteKeyService.isEnabled(this)) R.string.buttons_remote_service_on
+            else R.string.buttons_remote_service_off,
+        )
+        findViewById<MaterialButton>(R.id.btn_remote_music).setText(
+            if (MediaKeyForwarder.hasAccess(this)) R.string.buttons_remote_music_on
+            else R.string.buttons_remote_music_off,
+        )
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -197,6 +209,24 @@ class ButtonMappingActivity : AppCompatActivity() {
         ).show()
     }
 
+    private fun openRemoteService() {
+        try {
+            startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            Toast.makeText(this, R.string.buttons_remote_service_hint, Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            LogBus.log("couldn't open accessibility settings ($e)")
+        }
+    }
+
+    private fun openMusicPassThrough() {
+        try {
+            startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            Toast.makeText(this, R.string.buttons_remote_music_hint, Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            LogBus.log("couldn't open notification access settings ($e)")
+        }
+    }
+
     private fun teachRemote() {
         if (!RemotePad.enabled(this)) {
             Toast.makeText(this, "Turn remote pad on first", Toast.LENGTH_SHORT).show()
@@ -218,9 +248,12 @@ class ButtonMappingActivity : AppCompatActivity() {
             .setMessage(gesture.label)
             .setNegativeButton(android.R.string.cancel) { _, _ -> RemotePad.teachListener = null }
             .setOnDismissListener { RemotePad.teachListener = null }
+            // The dialog has its own window, so keys never reach this activity's dispatchKeyEvent
+            // while it's up — and unhandled media keys fall through to the system media session.
+            .setOnKeyListener { _, _, ev -> RemotePad.teachListener?.invoke(ev) ?: false }
             .create()
         RemotePad.teachListener = listen@{ ev ->
-            if (ev.device?.isVirtual == true) return@listen false
+            if (!RemotePad.isExternalPad(ev)) return@listen false
             if (ev.action == KeyEvent.ACTION_DOWN && ev.repeatCount == 0) {
                 RemotePad.teach(this, ev.keyCode, gesture)
                 RemotePad.teachListener = null

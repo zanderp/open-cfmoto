@@ -10,7 +10,8 @@ import android.view.KeyEvent
 /**
  * Pair a Bluetooth gamepad / ring / keypad and treat its keys as handlebar gestures.
  * AVRCP remotes already reach [MediaButtonBridge] via MediaSession. This path is HID
- * (D-pad / BUTTON_A) captured from a focused activity.
+ * (D-pad / BUTTON_A / media keys) captured from a focused activity, or from anywhere once
+ * [RemoteKeyService] is switched on. Remote presses drive AA whatever [ButtonMode] says.
  */
 object RemotePad {
     private const val PREFS = "opencfmoto_remote_pad"
@@ -30,7 +31,6 @@ object RemotePad {
     fun consume(ctx: Context, event: KeyEvent): Boolean {
         teachListener?.let { if (it(event)) return true }
         if (!enabled(ctx)) return false
-        if (!ButtonMode.isControlAa(ctx)) return false
         if (!isExternalPad(event)) return false
         if (event.action != KeyEvent.ACTION_DOWN && event.action != KeyEvent.ACTION_UP) return false
         if (event.repeatCount > 0 && event.action == KeyEvent.ACTION_DOWN) return true
@@ -50,6 +50,22 @@ object RemotePad {
         return defaultGesture(keyCode)
     }
 
+    /**
+     * A taught gesture for a media key that reached us via MediaSession (phone locked / app in the
+     * background). Only real HID remotes match — the bike's AVRCP keys arrive on a virtual device,
+     * so they keep their normal handlebar meaning. Untaught keys return null and also fall through.
+     */
+    fun taughtMediaGesture(ctx: Context, event: KeyEvent): ButtonGesture? {
+        if (!enabled(ctx) || !isExternalPad(event)) return null
+        return loadMap(ctx)[event.keyCode]
+    }
+
+    /** Remote-only mode: every remote media key is ours — taught, else [remoteGesture] defaults. */
+    fun remoteMediaGesture(ctx: Context, event: KeyEvent): ButtonGesture? {
+        if (!enabled(ctx) || !isExternalPad(event)) return null
+        return remoteGesture(ctx, event.keyCode)
+    }
+
     fun teach(ctx: Context, keyCode: Int, gesture: ButtonGesture) {
         val map = loadMap(ctx).toMutableMap()
         map[keyCode] = gesture
@@ -65,6 +81,27 @@ object RemotePad {
         KeyEvent.KEYCODE_DPAD_DOWN -> ButtonAction.DPAD_DOWN
         KeyEvent.KEYCODE_DPAD_LEFT -> ButtonAction.DPAD_LEFT
         KeyEvent.KEYCODE_DPAD_RIGHT -> ButtonAction.DPAD_RIGHT
+        else -> null
+    }
+
+    /**
+     * What a remote key does when [RemoteKeyService] sees it first: taught, then pad defaults, then
+     * plain media keys as the bike's track/select keys (MediaSession never sees them in that case).
+     */
+    fun remoteGesture(ctx: Context, keyCode: Int): ButtonGesture? =
+        gestureFor(ctx, keyCode) ?: when (keyCode) {
+            KeyEvent.KEYCODE_MEDIA_NEXT -> ButtonGesture.NAV_FWD
+            KeyEvent.KEYCODE_MEDIA_PREVIOUS -> ButtonGesture.NAV_BACK
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            KeyEvent.KEYCODE_HEADSETHOOK -> ButtonGesture.SELECT_PRESS
+            else -> null
+        }
+
+    /** The hold variant of a tap gesture, for remotes that send a real key-down → key-up. */
+    fun holdGesture(gesture: ButtonGesture): ButtonGesture? = when (gesture) {
+        ButtonGesture.NAV_BACK -> ButtonGesture.NAV_BACK_LONG
+        ButtonGesture.NAV_FWD -> ButtonGesture.NAV_FWD_LONG
+        ButtonGesture.SELECT_PRESS -> ButtonGesture.SELECT_LONG
         else -> null
     }
 
@@ -87,7 +124,8 @@ object RemotePad {
 
     fun isExternalPad(event: KeyEvent): Boolean {
         val dev = event.device ?: return false
-        if (dev.isVirtual) return false
+        // Not the phone's own volume / power keys — those are built in, not external.
+        if (dev.isVirtual || !dev.isExternal) return false
         val src = event.source
         return src and InputDevice.SOURCE_GAMEPAD != 0 ||
             src and InputDevice.SOURCE_DPAD != 0 ||
